@@ -1,0 +1,58 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Lora:ital,wght@0,400;0,500;0,600;1,400&display=swap');
+
+:root {
+  /* Greek Desert / Classic Poetry Palette */
+  --color-bg-primary: #F4EBE1;    /* Parchment / Sand */
+  --color-bg-secondary: #EADCD0;  /* Deeper sand / Stone */
+  --color-bg-panel: #FAF5F0;      /* Lighter panel background */
+  
+  --color-text-main: #4A3E38;     /* Deep charcoal / Earthy tone */
+  --color-text-muted: #8E7C71;    /* Dusty brown */
+  --color-text-accent: #B26A59;   /* Terracotta / Rust */
+  
+  --color-border: #DBCDBE;
+  
+  --font-serif: 'Lora', serif;
+  --font-sans: 'Inter', sans-serif;
+  
+  /* Chat bubbles */
+  --color-thought-bg: #E2DBD2;
+  --color-thought-text: #706259;
+  --color-dialogue-bg: #FFFFFF;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--color-bg-primary);
+  color: var(--color-text-main);
+  line-height: 1.6;
+  overflow: hidden; /* App layout will handle scrolling */
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-serif);
+  font-weight: 500;
+  color: var(--color-text-main);
+}
+
+/* Elegant Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(187, 172, 155, 0.6);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(142, 124, 113, 0.8);
+}

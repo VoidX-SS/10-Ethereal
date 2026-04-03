@@ -1,0 +1,16 @@
+[
+  {
+    "id": "msg_001",
+    "timestamp": "2026-10-15T19:55:00Z",
+    "characterId": "char_A",
+    "thought": "Cảm giác bình yên này thật dễ chịu. Mình ước gì mọi thứ cứ mãi như thế này.",
+    "dialogue": "Cậu thấy mình đặt chậu cây ở góc này có vẻ hợp lý không, Mia?"
+  },
+  {
+    "id": "msg_002",
+    "timestamp": "2026-10-15T19:58:00Z",
+    "characterId": "char_B",
+    "thought": "Anh ấy lúc nào cũng tỉ mỉ quá mức. Nhưng nhìn anh ấy sắp xếp đồ đạc cũng buồn cười.",
+    "dialogue": "Trông cũng ổn đấy... Nhưng tớ nghĩ gần cửa sổ thì nó sẽ đón được nhiều ánh sáng hơn. Để tớ phụ cậu kéo nó qua nhé!"
+  }
+]

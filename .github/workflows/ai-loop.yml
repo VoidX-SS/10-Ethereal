@@ -1,0 +1,37 @@
+name: 10 Ethereal AI Cron Job
+
+on:
+  schedule:
+    - cron: '*/15 * * * *' # Chạy mỗi 15 phút
+  workflow_dispatch: # Cho phép click gọi thủ công từ UI GitHub (Actions tab)
+
+permissions:
+  contents: write
+
+jobs:
+  run-ai:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Root Dependencies
+        run: npm install
+
+      - name: Run AI Game Master & Character
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: node scripts/cron.js
+
+      - name: Commit and Push Database Changes
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add public/data/state.json public/data/history.json
+          git commit -m "chore(ai): Turn executed [skip ci]" || echo "No changes to commit"
+          git push
