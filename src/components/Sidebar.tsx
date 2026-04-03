@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { doc, setDoc } from 'firebase/firestore'
 import { db } from '../firebase'
+import { Menu, User, Globe, Save } from 'lucide-react'
 import styles from './Sidebar.module.css'
 import type { GameState, Character } from '../types'
 
@@ -212,7 +213,8 @@ export default function Sidebar({ gameState, setGameState, sidebarOpen, toggleSi
 
         <div style={{marginTop: 30, marginBottom: 50}}>
            <button className={styles.saveButton} onClick={handleSaveToCloud} disabled={isSaving}>
-             {isSaving ? "ĐANG LƯU..." : "LƯU TRẠNG THÁI (LÊN CLOUD)"}
+             <Save size={18} />
+             {isSaving ? "ĐANG LƯU..." : "LƯU TRẠNG THÁI (CLOUD)"}
            </button>
         </div>
       </div>
@@ -223,10 +225,7 @@ export default function Sidebar({ gameState, setGameState, sidebarOpen, toggleSi
     <div className={styles.sidebar}>
       <div className={styles.header}>
         <button className={styles.toggleBtn} onClick={toggleSidebar}>
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-            <line x1="9" y1="3" x2="9" y2="21"></line>
-          </svg>
+          <Menu size={24} />
         </button>
         {sidebarOpen && (
           <div className={styles.headerTitles}>
@@ -238,15 +237,15 @@ export default function Sidebar({ gameState, setGameState, sidebarOpen, toggleSi
 
       <div className={`${styles.tabs} ${!sidebarOpen ? styles.tabsVertical : ''}`}>
         <button className={`${styles.tab} ${activeTab === 'A' ? styles.active : ''}`} onClick={() => { setActiveTab('A'); if(!sidebarOpen) toggleSidebar(); }}>
-          <span className={styles.tabIcon}>A</span>
+          <span className={styles.tabIcon}><User size={18} /></span>
           {sidebarOpen && <span>{charA.stats.name}</span>}
         </button>
         <button className={`${styles.tab} ${activeTab === 'B' ? styles.active : ''}`} onClick={() => { setActiveTab('B'); if(!sidebarOpen) toggleSidebar(); }}>
-          <span className={styles.tabIcon}>B</span>
+          <span className={styles.tabIcon}><User size={18} /></span>
           {sidebarOpen && <span>{charB.stats.name}</span>}
         </button>
         <button className={`${styles.tab} ${activeTab === 'World' ? styles.active : ''}`} onClick={() => { setActiveTab('World'); if(!sidebarOpen) toggleSidebar(); }}>
-          <span className={styles.tabIcon}>W</span>
+          <span className={styles.tabIcon}><Globe size={18} /></span>
           {sidebarOpen && <span>Quản Trò</span>}
         </button>
       </div>
@@ -284,7 +283,8 @@ export default function Sidebar({ gameState, setGameState, sidebarOpen, toggleSi
             <textarea className={styles.formTextarea} value={gameState.world.rules} onChange={(e) => setGameState({...gameState, world: {...gameState.world, rules: e.target.value}})} />
           </div>
           <button className={styles.saveButton} onClick={handleSaveToCloud} disabled={isSaving}>
-            {isSaving ? "ĐANG LƯU..." : "LƯU THẾ GIỚI (LÊN CLOUD)"}
+            <Save size={18} />
+            {isSaving ? "ĐANG LƯU..." : "LƯU THẾ GIỚI (CLOUD)"}
           </button>
         </div>
       )}
