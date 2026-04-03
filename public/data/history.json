@@ -12,5 +12,19 @@
     "characterId": "char_B",
     "thought": "Anh ấy lúc nào cũng tỉ mỉ quá mức. Nhưng nhìn anh ấy sắp xếp đồ đạc cũng buồn cười.",
     "dialogue": "Trông cũng ổn đấy... Nhưng tớ nghĩ gần cửa sổ thì nó sẽ đón được nhiều ánh sáng hơn. Để tớ phụ cậu kéo nó qua nhé!"
+  },
+  {
+    "id": "msg_1775204122550",
+    "timestamp": "2026-10-15T20:00:00Z",
+    "characterId": "char_A",
+    "thought": "Ánh sáng phản chiếu trong mắt cậu ấy lúc này còn đẹp hơn bất kỳ tác phẩm nghệ thuật nào tớ từng viết. Liệu mình có nên pha một chút trà để kéo dài thêm khoảnh khắc tĩnh lặng này không?",
+    "dialogue": "Ý kiến của cậu lúc nào cũng thật tinh tế, giống như cách ánh sáng mùa thu len lỏi vào phòng vậy. Sau khi xong việc này, cậu có muốn cùng tớ nhâm nhi một tách trà nóng không?"
+  },
+  {
+    "id": "msg_1775228426688",
+    "timestamp": "2026-10-15T20:05:00Z",
+    "characterId": "char_B",
+    "thought": "Nhìn bóng lưng anh ấy trong bếp, mình thật muốn trêu chọc một chút để xem anh ấy lúng túng thế nào.",
+    "dialogue": "Nhìn cậu pha trà tập trung quá nhỉ, hay là cậu định bỏ 'tình dược' vào trong đó để tớ không thể rời khỏi đây tối nay?"
   }
 ]

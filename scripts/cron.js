@@ -3,6 +3,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import dotenv from 'dotenv';
+import { initializeApp, cert } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
 
 dotenv.config(); // Loads .env if testing locally
 
@@ -11,6 +13,15 @@ const __dirname = path.dirname(__filename);
 
 const statePath = path.join(__dirname, '../public/data/state.json');
 const historyPath = path.join(__dirname, '../public/data/history.json');
+
+let adminApp;
+if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+  const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+  adminApp = initializeApp({ credential: cert(serviceAccount) });
+} else {
+  adminApp = initializeApp();
+}
+const db = getFirestore(adminApp);
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
@@ -27,8 +38,17 @@ async function runCron() {
       process.exit(1);
   }
 
-  const gameState = JSON.parse(fs.readFileSync(statePath, 'utf8'));
-  const chatHistory = JSON.parse(fs.readFileSync(historyPath, 'utf8'));
+  const stateDoc = await db.collection('game_data').doc('state').get();
+  let gameState = stateDoc.data();
+  if (!gameState || !gameState.world) {
+    gameState = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+  }
+
+  const historyDoc = await db.collection('game_data').doc('history').get();
+  let chatHistory = historyDoc.exists ? historyDoc.data().messages : null;
+  if (!chatHistory) {
+    chatHistory = JSON.parse(fs.readFileSync(historyPath, 'utf8'));
+  }
 
   const speakerId = gameState.world.next_speaker || 'char_A';
   const speaker = gameState.characters.find(c => c.id === speakerId);
@@ -163,6 +183,10 @@ async function runCron() {
   applyDeltas(speaker, gmDecision.stats_delta[speakerId]);
   applyDeltas(other, gmDecision.stats_delta[other.id]);
 
+  await db.collection('game_data').doc('state').set(gameState);
+  await db.collection('game_data').doc('history').set({ messages: chatHistory });
+
+  // Fallback save to local for debug
   fs.writeFileSync(statePath, JSON.stringify(gameState, null, 2));
   fs.writeFileSync(historyPath, JSON.stringify(chatHistory, null, 2));
 

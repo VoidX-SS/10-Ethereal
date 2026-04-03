@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { doc, setDoc } from 'firebase/firestore'
+import { db } from '../firebase'
 import styles from './Sidebar.module.css'
 import type { GameState, Character } from '../types'
 
@@ -111,6 +113,20 @@ const matrixKeys = [
 
 export default function Sidebar({ gameState, setGameState, sidebarOpen, toggleSidebar }: SidebarProps) {
   const [activeTab, setActiveTab] = useState<'A' | 'B' | 'World'>('A')
+  const [isSaving, setIsSaving] = useState(false)
+
+  const handleSaveToCloud = async () => {
+    setIsSaving(true)
+    try {
+      await setDoc(doc(db, 'game_data', 'state'), gameState)
+      alert("✓ Đã lưu thay đổi vào hệ thống (Cloud) thành công!")
+    } catch (error) {
+      console.error(error)
+      alert("⚠ Lỗi khi lưu, bạn có quyền ghi vào Firebase không?")
+    } finally {
+      setIsSaving(false)
+    }
+  }
 
   const charA = gameState.characters[0]
   const charB = gameState.characters[1]
@@ -195,8 +211,8 @@ export default function Sidebar({ gameState, setGameState, sidebarOpen, toggleSi
         </div>
 
         <div style={{marginTop: 30, marginBottom: 50}}>
-           <button className={styles.saveButton} onClick={() => alert("Chỉ số đã được ghi nhận. Trong bản thật dữ liệu tự lưu vào JSON bởi github action hoặc server.")} >
-             LƯU TRẠNG THÁI AI
+           <button className={styles.saveButton} onClick={handleSaveToCloud} disabled={isSaving}>
+             {isSaving ? "ĐANG LƯU..." : "LƯU TRẠNG THÁI (LÊN CLOUD)"}
            </button>
         </div>
       </div>
@@ -267,8 +283,8 @@ export default function Sidebar({ gameState, setGameState, sidebarOpen, toggleSi
             <label className={styles.formLabel}>Quy luật thế giới</label>
             <textarea className={styles.formTextarea} value={gameState.world.rules} onChange={(e) => setGameState({...gameState, world: {...gameState.world, rules: e.target.value}})} />
           </div>
-          <button className={styles.saveButton} onClick={() => alert("Dữ liệu thế giới đã lưu!")} >
-            LƯU THẾ GIỚI
+          <button className={styles.saveButton} onClick={handleSaveToCloud} disabled={isSaving}>
+            {isSaving ? "ĐANG LƯU..." : "LƯU THẾ GIỚI (LÊN CLOUD)"}
           </button>
         </div>
       )}
