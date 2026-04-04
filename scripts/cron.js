@@ -26,16 +26,16 @@ const db = getFirestore(adminApp);
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 // USING RAW SPECIFIED MODEL: gemini-3.1-flash-lite-preview
-const model = genAI.getGenerativeModel({ 
-  model: 'gemini-3.1-flash-lite-preview', 
-  generationConfig: { responseMimeType: "application/json" } 
+const model = genAI.getGenerativeModel({
+  model: 'gemini-3.1-flash-lite-preview',
+  generationConfig: { responseMimeType: "application/json" }
 });
 
 async function runCron() {
   console.log("Starting 10 Ethereal Cron Job with gemini-3.1-flash-lite-preview...");
   if (!process.env.GEMINI_API_KEY) {
-      console.error("Missing GEMINI_API_KEY");
-      process.exit(1);
+    console.error("Missing GEMINI_API_KEY");
+    process.exit(1);
   }
 
   const stateDoc = await db.collection('game_data').doc('state').get();
@@ -143,7 +143,7 @@ async function runCron() {
        "${other.id}": { "affection": 1, "intimacy": 2, "excitement": 3 }
     },
     "world_update": {
-       "new_time": "Vd: 2026-10-15T20:15:00Z",
+       "new_time": "Vd: Cập nhật thời gian trôi qua, bám sát format cũ (2026-10-15T20:20:00Z hoặc Mờ sáng, Trưa tròn...)",
        "new_environment": "Giữ nguyên hoặc cập nhật bối cảnh",
        "new_topic": "Chủ đề đang diễn ra"
     },
@@ -163,7 +163,7 @@ async function runCron() {
   gameState.world.time = gmDecision.world_update.new_time;
   gameState.world.environment = gmDecision.world_update.new_environment;
   gameState.world.current_topic = gmDecision.world_update.new_topic;
-  
+
   gameState.world.next_speaker = gmDecision.next_turn.next_speaker_id;
   gameState.world.next_tone = gmDecision.next_turn.tone_instruction;
   gameState.world.next_length = gmDecision.next_turn.length_instruction;
@@ -196,6 +196,8 @@ async function runCron() {
   console.log(`SAYS: ${newMessage.dialogue}`);
   console.log(`=======================\n`);
   console.log(`GM Decided Next: [${gameState.world.next_speaker}], Tone: ${gameState.world.next_tone}, Length: ${gameState.world.next_length}`);
+  console.log(`World Changed: Time -> ${gmDecision.world_update.new_time} | Topic -> ${gmDecision.world_update.new_topic}`);
+  console.log(`Stats Delta:`, JSON.stringify(gmDecision.stats_delta, null, 2));
   console.log("Turn completed and fully saved.");
 }
 
