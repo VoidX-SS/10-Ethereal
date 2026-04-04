@@ -214,7 +214,7 @@ export default function Sidebar({ gameState, setGameState, sidebarOpen, toggleSi
         <div style={{marginTop: 30, marginBottom: 50}}>
            <button className={styles.saveButton} onClick={handleSaveToCloud} disabled={isSaving}>
              <Save size={18} />
-             {isSaving ? "ĐANG LƯU..." : "LƯU TRẠNG THÁI (CLOUD)"}
+             {isSaving ? "ĐANG LƯU..." : "LƯU TRẠNG THÁI"}
            </button>
         </div>
       </div>
@@ -230,7 +230,7 @@ export default function Sidebar({ gameState, setGameState, sidebarOpen, toggleSi
         {sidebarOpen && (
           <div className={styles.headerTitles}>
             <h2 className={styles.title}>Bảng Điều Khiển</h2>
-            <p className={styles.subtitle}>Thiết lập Toàn Bộ Tham Số Môi Trường</p>
+            <p className={styles.subtitle}>Thiết lậpTham Số Môi Trường</p>
           </div>
         )}
       </div>
