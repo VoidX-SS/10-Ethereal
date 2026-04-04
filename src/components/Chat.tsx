@@ -19,6 +19,14 @@ export default function Chat({ history, gameState }: ChatProps) {
     return char ? char.stats.name : 'Unknown'
   }
 
+  const formatTime = (timeStr: string) => {
+    const d = new Date(timeStr);
+    if (isNaN(d.getTime())) {
+      return timeStr; // Fallback cho phép nhập cả chữ như "Sáng sớm", "4/4/2026 - 6:00"
+    }
+    return d.toLocaleTimeString('vi-VN', {hour: '2-digit', minute:'2-digit'});
+  }
+
   return (
     <div className={styles.chatContainer}>
       <div className={styles.header}>
@@ -37,7 +45,7 @@ export default function Chat({ history, gameState }: ChatProps) {
           <div key={msg.id} className={`${styles.messageWrapper} ${msg.characterId === 'char_A' ? styles.alignLeft : styles.alignRight}`}>
             <div className={styles.characterName}>
               {getCharacterName(msg.characterId)}
-              <span className={styles.messageTime}> • {new Date(msg.timestamp).toLocaleTimeString('vi-VN', {hour: '2-digit', minute:'2-digit'})}</span>
+              <span className={styles.messageTime}> • {formatTime(msg.timestamp)}</span>
             </div>
             
             {msg.thought && (
