@@ -1,6 +1,11 @@
 -- 1. Bật extension pgvector để hỗ trợ vector search
 create extension if not exists vector;
 
+-- Xóa các bảng cũ nếu đã tồn tại để tránh lỗi "relation already exists"
+drop table if exists semantic_memory cascade;
+drop table if exists episodic_memory cascade;
+drop table if exists procedural_memory cascade;
+
 -- ==========================================
 -- 2. KÝ ỨC NGỮ NGHĨA (Semantic Memory)
 -- ==========================================
@@ -8,14 +13,14 @@ create extension if not exists vector;
 create table semantic_memory (
   id uuid primary key default gen_random_uuid(),
   content text not null,
-  -- Giả sử dùng text-embedding-3-small (1536 chiều), thay đổi nếu bạn dùng mô hình khác
-  embedding vector(1536), 
+  -- Dùng gemini-embedding-2 (3072 chiều)
+  embedding vector(3072), 
   metadata jsonb default '{}'::jsonb,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
--- Tạo chỉ mục HNSW cho pgvector để tìm kiếm cực nhanh
-create index on semantic_memory using hnsw (embedding vector_cosine_ops);
+-- Bỏ qua tạo index HNSW do pgvector giới hạn index tối đa 2000 chiều. 
+-- Vector 3072 chiều vẫn tìm kiếm bình thường (Sequential Scan - Rất nhanh với tập dữ liệu nhỏ).
 
 -- ==========================================
 -- 3. KÝ ỨC SỰ KIỆN (Episodic Memory)

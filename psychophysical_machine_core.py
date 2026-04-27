@@ -5,6 +5,7 @@ from typing import Dict, Any, Tuple, Optional
 import os
 from dotenv import load_dotenv
 from supabase import create_client, Client
+from google import genai
 
 load_dotenv()
 SUPABASE_URL = os.environ.get("VITE_SUPABASE_URL")
@@ -15,6 +16,17 @@ if SUPABASE_URL and SUPABASE_KEY:
 else:
     supabase = None
     print("Warning: Supabase credentials not found in .env")
+
+# Khởi tạo Gemini Client
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+gemini_client = None
+if GEMINI_API_KEY:
+    try:
+        gemini_client = genai.Client(api_key=GEMINI_API_KEY)
+    except Exception as e:
+        print(f"Warning: Failed to init Gemini Client: {e}")
+else:
+    print("Warning: GEMINI_API_KEY not found in .env")
 
 # ==========================================
 # CHỈ THỊ 2: ĐỊNH NGHĨA KIỂU DỮ LIỆU TENSOR
@@ -236,14 +248,42 @@ class PsychophysicalProcessingMachine:
         # Lưu vào Supabase (Episodic Memory)
         if supabase:
             try:
-                record = {
+                record_episodic = {
                     "event_description": f"Tick {t}: Intent={I_t.detach().numpy().tolist()}, Dissonance={kl_div.item():.4f}, Status={system_status}",
                     "emotional_weight": E_c,
                     "associative_strength": 0.5, # Giả lập giá trị
                     "recency": float(t),
                     "drift": 0.0
                 }
-                supabase.table("episodic_memory").insert(record).execute()
+                supabase.table("episodic_memory").insert(record_episodic).execute()
+                
+                # Lưu Semantic Memory (Embedding 3072 chiều với gemini-embedding-2)
+                semantic_content = f"Tại tick {t}, nhân vật ghi nhận mức độ xung đột Dissonance: {kl_div.item():.4f}. Trạng thái hệ thống: {system_status}"
+                if gemini_client:
+                    response = gemini_client.models.embed_content(
+                        model='gemini-embedding-2',
+                        contents=semantic_content
+                    )
+                    embedding_vector = response.embeddings[0].values
+                    
+                    record_semantic = {
+                        "content": semantic_content,
+                        "embedding": embedding_vector,
+                        "metadata": {"dissonance": kl_div.item(), "tick": t}
+                    }
+                    supabase.table("semantic_memory").insert(record_semantic).execute()
+                
+                # Lưu Procedural Memory nếu Catastrophe Triggered
+                if CATASTROPHE_TRIGGERED:
+                    rule_name = f"AMYGDALA_HIJACK_RULE_{int(t)}"
+                    record_procedural = {
+                        "rule_name": rule_name,
+                        "condition_logic": {"stress_threshold": "high", "trigger": "amygdala_hijack"},
+                        "action_result": action_executed,
+                        "is_active": True
+                    }
+                    supabase.table("procedural_memory").insert(record_procedural).execute()
+                    
             except Exception as e:
                 pass # Bỏ qua print lỗi để stdout chỉ xuất json
         
