@@ -1,31 +1,25 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Lora:ital,wght@0,400;0,500;0,600;1,400&display=swap');
 
 :root {
-  /* Desert Glass Palette */
-  --color-bg-gradient-1: #F8F1EB;
-  --color-bg-gradient-2: #F3EAE1;
-  --color-bg-gradient-3: #EADCD0;
+  /* Minimalism 2.0 Palette */
+  --color-bg-main: #FAFAFA;
+  --color-bg-sidebar: #FFFFFF;
   
-  /* Glass Variables */
-  --color-glass-panel: rgba(254, 251, 248, 0.45);
-  --color-glass-border: rgba(255, 255, 255, 0.45);
-  --color-glass-shadow: rgba(142, 124, 113, 0.08);
-
   /* Element Colors */
-  --color-text-main: #4A3E38;     /* Deep charcoal / Earthy tone */
-  --color-text-muted: #8E7C71;    /* Dusty brown */
-  --color-text-accent: #B26A59;   /* Terracotta / Rust */
+  --color-text-main: #111111;     /* Stark black */
+  --color-text-muted: #777777;    /* Neutral gray */
+  --color-text-accent: #000000;   /* Pure black accent */
   
-  --color-border: rgba(142, 124, 113, 0.15); /* Softened border */
+  --color-border: #CCCCCC;        /* Viền sắc nét, tương phản hơn */
   
   --font-serif: 'Lora', serif;
   --font-sans: 'Inter', sans-serif;
   
   /* Chat bubbles */
-  --color-thought-bg: rgba(219, 205, 192, 0.85); /* Đậm hơn để dễ nổi chữ */
-  --color-thought-border: rgba(219, 205, 192, 0.9);
-  --color-thought-text: #3D322B; /* Chữ tối màu hơn, cực sắc nét */
-  --color-dialogue-bg: rgba(255, 255, 255, 0.75); /* translucent */
+  --color-thought-text: #666666;
+  --color-thought-border: #BBBBBB;
+  --color-dialogue-bg-left: #F4F4F4; 
+  --color-dialogue-bg-right: #FFFFFF;
 }
 
 * {
@@ -39,22 +33,12 @@ body {
   color: var(--color-text-main);
   line-height: 1.6;
   overflow: hidden;
-  
-  /* Animated Desert Gradient Background */
-  background: linear-gradient(-45deg, var(--color-bg-gradient-1), var(--color-bg-gradient-2), var(--color-bg-gradient-3), var(--color-bg-gradient-1));
-  background-size: 400% 400%;
-  animation: gradientFlow 25s ease infinite;
-}
-
-@keyframes gradientFlow {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
+  background-color: var(--color-bg-main);
 }
 
 @keyframes messageFadeIn {
-  from { opacity: 0; transform: translateY(20px); filter: blur(4px); }
-  to { opacity: 1; transform: translateY(0); filter: blur(0); }
+  from { opacity: 0; transform: translateY(15px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -72,10 +56,10 @@ h1, h2, h3, h4, h5, h6 {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(187, 172, 155, 0.3);
+  background: #E0E0E0;
   border-radius: 10px;
   transition: all 0.3s ease;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(142, 124, 113, 0.5);
+  background: #C0C0C0;
 }

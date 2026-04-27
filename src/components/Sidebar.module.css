@@ -4,7 +4,7 @@
   padding: 24px 16px;
   height: 100vh;
   gap: 20px;
-  width: 440px;
+  width: 340px;
   box-sizing: border-box;
 }
 
@@ -146,17 +146,14 @@
 }
 
 .formInput, .formTextarea {
-  background-color: rgba(255, 255, 255, 0.5); /* Glassier */
-  border: 1px solid rgba(255, 255, 255, 0.4); /* Glassier border */
+  background-color: transparent; 
+  border: 1px solid var(--color-border);
   padding: 14px 16px;
-  border-radius: 12px; /* Softer radius */
+  border-radius: 4px;
   font-family: var(--font-sans);
   font-size: 14.5px;
   color: var(--color-text-main);
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.02);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  transition: all 0.2s ease;
 }
 
 .formTextarea {
@@ -167,10 +164,7 @@
 
 .formInput:focus, .formTextarea:focus {
   outline: none;
-  background-color: rgba(255, 255, 255, 0.85); /* more opaque on focus */
-  border-color: rgba(178, 106, 89, 0.4);
-  box-shadow: 0 6px 20px rgba(178, 106, 89, 0.08); /* Glow effect */
-  transform: translateY(-1px);
+  border-color: var(--color-text-accent);
 }
 
 .sliderContainer {
@@ -199,11 +193,11 @@
 }
 
 .saveButton {
-  background: linear-gradient(135deg, var(--color-text-accent), #9b5a4b);
+  background: var(--color-text-accent);
   color: #fff;
   border: none;
   padding: 16px;
-  border-radius: 12px;
+  border-radius: 6px;
   font-family: var(--font-sans);
   font-weight: 600;
   letter-spacing: 1.2px;
@@ -211,17 +205,16 @@
   text-transform: uppercase;
   cursor: pointer;
   margin-top: 10px;
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 0 4px 15px rgba(178, 106, 89, 0.4);
+  transition: opacity 0.2s ease;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
+  width: 100%;
 }
 
 .saveButton:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(178, 106, 89, 0.5);
+  opacity: 0.85;
 }
 
 .saveButton:active {

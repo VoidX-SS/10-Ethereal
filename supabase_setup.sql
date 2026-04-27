@@ -1,0 +1,48 @@
+-- 1. Bật extension pgvector để hỗ trợ vector search
+create extension if not exists vector;
+
+-- ==========================================
+-- 2. KÝ ỨC NGỮ NGHĨA (Semantic Memory)
+-- ==========================================
+-- Dùng để tìm kiếm K-nearest neighbor bằng pgvector
+create table semantic_memory (
+  id uuid primary key default gen_random_uuid(),
+  content text not null,
+  -- Giả sử dùng text-embedding-3-small (1536 chiều), thay đổi nếu bạn dùng mô hình khác
+  embedding vector(1536), 
+  metadata jsonb default '{}'::jsonb,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+-- Tạo chỉ mục HNSW cho pgvector để tìm kiếm cực nhanh
+create index on semantic_memory using hnsw (embedding vector_cosine_ops);
+
+-- ==========================================
+-- 3. KÝ ỨC SỰ KIỆN (Episodic Memory)
+-- ==========================================
+-- Lưu vết thời gian thực (Trace) của Event Loop
+create table episodic_memory (
+  id uuid primary key default gen_random_uuid(),
+  event_description text not null,
+  emotional_weight float, -- E(c) lấy từ Amygdala
+  associative_strength float, -- A(c)
+  recency float, -- R(c)
+  drift float, -- D(c)
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+-- Index chuyên biệt cho time-series thay thế cho hypertables
+create index episodic_memory_created_at_idx on episodic_memory (created_at desc);
+
+-- ==========================================
+-- 4. KÝ ỨC THỦ TỤC (Procedural Memory)
+-- ==========================================
+-- ACID Database cho các rules và sở thích cứng
+create table procedural_memory (
+  id uuid primary key default gen_random_uuid(),
+  rule_name varchar(255) not null unique,
+  condition_logic jsonb not null,
+  action_result text not null,
+  is_active boolean default true,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);

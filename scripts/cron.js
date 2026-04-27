@@ -1,6 +1,10 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { execSync, exec } from 'child_process';
+import util from 'util';
+
+const execAsync = util.promisify(exec);
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import dotenv from 'dotenv';
 import { initializeApp, cert } from 'firebase-admin/app';
@@ -25,30 +29,34 @@ const db = getFirestore(adminApp);
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-// USING RAW SPECIFIED MODEL: gemini-3.1-flash-lite-preview
+// USING PRO MODEL FOR DEEP THINKING
 const model = genAI.getGenerativeModel({
   model: 'gemini-3.1-flash-lite-preview',
-  generationConfig: { responseMimeType: "application/json" }
+  generationConfig: {
+    temperature: 1.8,
+    //thinking_level: "high",
+    responseMimeType: "application/json"
+  }
 });
 
-async function runCron() {
-  console.log("Starting 10 Ethereal Cron Job with gemini-3.1-flash-lite-preview...");
-  if (!process.env.GEMINI_API_KEY) {
-    console.error("Missing GEMINI_API_KEY");
-    process.exit(1);
+// Hàm bọc tự động thử lại 1 lần nếu LLM bị lỗi
+async function generateWithRetry(prompt) {
+  try {
+    const result = await model.generateContent(prompt);
+    return JSON.parse(result.response.text());
+  } catch (error) {
+    console.warn("LLM Error, retrying once...", error.message);
+    const retryResult = await model.generateContent(prompt);
+    return JSON.parse(retryResult.response.text());
   }
+}
 
-  const stateDoc = await db.collection('game_data').doc('state').get();
-  let gameState = stateDoc.data();
-  if (!gameState || !gameState.world) {
-    gameState = JSON.parse(fs.readFileSync(statePath, 'utf8'));
-  }
+async function processWorld(worldId, gameState) {
+  console.log(`\n===========================================`);
+  console.log(`[${worldId}] Bắt đầu xử lý thế giới...`);
 
-  const historyDoc = await db.collection('game_data').doc('history').get();
-  let chatHistory = historyDoc.exists ? historyDoc.data().messages : null;
-  if (!chatHistory) {
-    chatHistory = JSON.parse(fs.readFileSync(historyPath, 'utf8'));
-  }
+  const historyDoc = await db.collection('history').doc(worldId).get();
+  let chatHistory = historyDoc.exists ? historyDoc.data().messages : [];
 
   const speakerId = gameState.world.next_speaker || 'char_A';
   const speaker = gameState.characters.find(c => c.id === speakerId);
@@ -61,13 +69,18 @@ async function runCron() {
   Chỉ thị bí mật (Roleplay): ${speaker.roleplay_prompt}
   Bạn đang nhập vai nhân vật: ${speaker.stats.name}.
   
+  RÀNG BUỘC TUYỆT ĐỐI VỀ GIỚI TÍNH VÀ XƯNG HÔ:
+  - Giới tính của bạn là: ${speaker.stats.gender || "Không rõ"}. Tuổi: ${speaker.stats.age || speaker.stats.date_of_birth}.
+  - Giới tính của đối phương (${other.stats.name}) là: ${other.stats.gender || "Không rõ"}. Tuổi: ${other.stats.age || other.stats.date_of_birth}.
+  TỪ KHÓA BẮT BUỘC: Bạn phải chọn ĐẠI TỪ NHÂN XƯNG và TỪ VỰNG miêu tả chính xác tuyệt đối với giới tính trên. (Ví dụ: Nếu đối phương là Nam thì không được gọi là 'cô ấy', 'chị ấy'; nếu bản thân là Nữ thì không xưng 'anh').
+  
   CHI TIẾT MÔI TRƯỜNG:
   Môi trường hiện tại: ${gameState.world.environment}. Thời gian: ${gameState.world.time}.
   Chủ đề câu chuyện: ${gameState.world.current_topic}.
   Sự kiện ngầm vừa xảy ra khoảng thời gian qua (Nếu có): ${gameState.world.last_event || "Không có"}. (Lưu ý: Nếu có sự kiện ngầm được đề cập, hãy suy luận cảm xúc của bạn từ sự kiện này!).
   
   CHI TIẾT TOÀN BỘ CHỈ SỐ CÁ NHÂN CỦA BẠN (HÃY BÁM SÁT VÀO ĐÂY ĐỂ ĐỘNG NÃO LẬP LUẬN):
-  - Hồ sơ: Tuổi/DOB: ${speaker.stats.date_of_birth}, C/V: ${speaker.stats.job} (CÔNG VIỆC ẢNH HƯỞNG ĐỜI SỐNG), Vị trí/Tư thế hiện tại: ${speaker.stats.position} (VỊ TRÍ ẢNH HƯỞNG QUYẾT ĐỊNH VÀ ĐỜI SỐNG).
+  - Hồ sơ: Tuổi: ${speaker.stats.age || speaker.stats.date_of_birth}, C/V: ${speaker.stats.job} (CÔNG VIỆC ẢNH HƯỞNG ĐỜI SỐNG), Vị trí/Tư thế hiện tại: ${speaker.stats.position} (VỊ TRÍ ẢNH HƯỞNG QUYẾT ĐỊNH VÀ ĐỜI SỐNG).
   - Trạng thái: Health: ${speaker.stats.health} (THỂ HIỆN KHẢ NĂNG HÀNH VI HIỆN TẠI), Look: ${speaker.stats.look} (THỂ HIỆN BẢN THÂN VÀ ẢNH HƯỞNG NGƯỜI XUNG QUANH), IQ: ${speaker.stats.iq} (THỂ HIỆN TRÍ THÔNG MINH HIỆN TẠI), EQ: ${speaker.stats.eq} (KHẢ NĂNG GIAO TIẾP XÃ HỘI).
   - Sâu thẳm: Niềm tin: ${speaker.stats.faith}, Ước mơ: ${speaker.stats.passion}, Vết thương lòng: ${speaker.stats.emotional_pain}. Yêu/Ghét: ${speaker.stats.love_hates}. Điểm mạnh/Điểm yếu: ${speaker.stats.pros_cons}. (TẤT CẢ NHỮNG ĐIỀU NÀY ẢNH HƯỞNG SÂU SẮC ĐẾN QUYẾT ĐỊNH VÀ ĐỜI SỐNG LÂU DÀI).
   - Bản sắc: Cởi mở ${speaker.stats.openness} (THẤP BẢO THỦ, CAO SÁNG TẠO), Tận tâm ${speaker.stats.dedicate} (THẤP TÙY HỨNG, CAO KỶ LUẬT), Khuynh hướng ${speaker.stats.tendency} (THẤP HƯỚNG NỘI, CAO HƯỚNG NGOẠI), Hòa đồng ${speaker.stats.sociable} (THẤP HUNG ÁC, CAO HIỀN LÀNH), Ổn định ${speaker.stats.stability} (THẤP LO ÂU, CAO BÌNH THẢN).
@@ -91,36 +104,71 @@ async function runCron() {
   NHIỆM VỤ (Vai diễn của bạn):
   Giữ vững đúng character tính cách, trả về JSON gồm:
   - Một dòng 'thought' (suy nghĩ ngầm, bạn đang tính toán gì dựa trên các đặc điểm thống kê và chỉ số cảm xúc trên của bản thân?).
-  - Một 'dialogue' (câu nói / hoặc hành động đáp lại chân thực với độ dài và tông giọng Quản trò yêu cầu).
+  - Một mảng 'dialogues' chứa các câu nói VÀ hành động được băm nhỏ thành từng phần liên tiếp. QUAN TRỌNG: Mọi hành động, miêu tả cơ thể phải được bọc trong dấu * (ví dụ: *siết chặt tay*).
   
   Định dạng JSON cần trả ra (TUYỆT ĐỐI không có text nào nằm ngoài JSON bracket):
   {
     "thought": "Suy nghĩ...",
-    "dialogue": "Lời nói hoặc hành động..."
+    "dialogues": [
+      "*Tôi siết chặt những ngón tay trên vai cô...*",
+      "Logic của cô thật sắc bén.",
+      "Nhưng hãy nhớ điều này..."
+    ]
   }
   `;
 
-  console.log(`Calling Character Engine [${speaker.stats.name}]...`);
-  const charResult = await model.generateContent(charPrompt);
-  const charAction = JSON.parse(charResult.response.text());
+  console.log(`[${worldId}] Calling Character Engine [${speaker.stats.name}]...`);
+  const charAction = await generateWithRetry(charPrompt);
 
   const newMessage = {
-    id: `msg_${Date.now()}`,
+    id: `msg_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
     timestamp: gameState.world.time,
     characterId: speakerId,
     thought: charAction.thought,
-    dialogue: charAction.dialogue
+    dialogues: charAction.dialogues
   };
   chatHistory.push(newMessage);
 
   // ==========================================
-  // PHASE 2: GAME MASTER EVALUATES TOÀN QUANG (NUMBERS & STRINGS)
+  // PHASE 1.5: GỌI LÕI TÂM LÝ PYTHON ĐỂ ĐÁNH GIÁ (PPM CORE)
+  // ==========================================
+  let ppmCoreStatus = "Bình thường";
+  let isCatastrophe = false;
+  try {
+    console.log(`[${worldId}] Calling Python Psychophysical Core...`);
+    const pythonArgs = JSON.stringify({ speaker: speakerId });
+    const cmd = `python psychophysical_machine_core.py "${pythonArgs.replace(/"/g, '\\"')}"`;
+    // Dùng execAsync để song song hóa giữa các thế giới
+    const { stdout } = await execAsync(cmd, { encoding: 'utf-8', env: { ...process.env, PYTHONIOENCODING: 'utf-8' } });
+
+    const lines = stdout.trim().split('\n');
+    for (let i = lines.length - 1; i >= 0; i--) {
+      try {
+        const ppmData = JSON.parse(lines[i]);
+        if (ppmData.status) {
+          ppmCoreStatus = ppmData.status;
+          isCatastrophe = ppmData.catastrophe_triggered;
+          break;
+        }
+      } catch (e) { }
+    }
+    console.log(`[${worldId}] [PPM Core] Status: ${ppmCoreStatus} | Catastrophe: ${isCatastrophe}`);
+  } catch (error) {
+    console.warn(`[${worldId}] Lỗi khi chạy Python Core:`, error.message);
+  }
+
+  // ==========================================
+  // PHASE 2: GAME MASTER EVALUATES
   // ==========================================
   const gmPrompt = `
   Bạn là Quản Trò toàn năng của thế giới 10 Ethereal. 
   Quy luật thế giới: ${gameState.world.rules}
   Kịch bản tổng thời điểm này: ${gameState.world.scenario}
   
+  RÀNG BUỘC VỀ GIỚI TÍNH CỦA NHÂN VẬT (Khi viết 'narrator_message', BẠN PHẢI DÙNG CHÍNH XÁC ĐẠI TỪ NHÂN XƯNG DỰA VÀO GIỚI TÍNH):
+  Nhân vật ${speaker.stats.name} (Người vừa nói) -> Giới tính: ${speaker.stats.gender || "Không rõ"}, Tuổi: ${speaker.stats.age || speaker.stats.date_of_birth}
+  Nhân vật ${other.stats.name} (Người kia) -> Giới tính: ${other.stats.gender || "Không rõ"}, Tuổi: ${other.stats.age || other.stats.date_of_birth}
+
   Lịch sử cuộc trò chuyện (Hành động vừa xảy ra là của ${speaker.stats.name}):
   ${JSON.stringify(chatHistory.slice(-5))}
 
@@ -128,19 +176,24 @@ async function runCron() {
   Thời gian: ${gameState.world.time}
   Môi trường: ${gameState.world.environment}
   Chủ đề: ${gameState.world.current_topic}
-  Nhân vật ${speaker.stats.name} (Người vừa nói) -> Chỉ số: ${JSON.stringify(speaker.stats)}, Matrix: ${JSON.stringify(speaker.matrix_to_other)}
-  Nhân vật ${other.stats.name} (Người kia) -> Chỉ số: ${JSON.stringify(other.stats)}, Matrix: ${JSON.stringify(other.matrix_to_other)}
+  Nhân vật ${speaker.stats.name} -> Chỉ số: ${JSON.stringify(speaker.stats)}, Matrix: ${JSON.stringify(speaker.matrix_to_other)}
+  Nhân vật ${other.stats.name} -> Chỉ số: ${JSON.stringify(other.stats)}, Matrix: ${JSON.stringify(other.matrix_to_other)}
+
+  KẾT QUẢ ĐÁNH GIÁ TỪ LÕI VẬT LÝ TÂM LÝ (PPM CORE):
+  Tình trạng: ${ppmCoreStatus} (Đã bị sụp đổ tâm lý Amygdala Hijack? ${isCatastrophe})
 
   NHIỆM VỤ QUẢN TRÒ (QUAN TRỌNG NHẤT LÀ CẬP NHẬT TRIỆT ĐỂ MATRIX, THỜI GIAN, TRẠNG THÁI):
-  1. LẬP LUẬN (gm_reasoning) & SỰ KIỆN NGẦM (implicit_event): Phân tích bối cảnh để nhảy thời gian sao cho hợp lý không bị tuyến tính. Nếu họ đang ở lớp và vừa xong 1 câu, có thể họ im lặng học bài -> tg nhảy 1 tiếng. Nếu ở ngữ cảnh nhắn tin, cách nhau chỉ 3 phút. Nếu bối cảnh khiến tâm lý thay đổi (như im lặng chịu tiếng trách mắng, hay hào hứng đợi xem phim), hãy tóm tắt tạo ra một sự kiện ngầm (implicit_event) tương đương để 2 nhân vật lấy đó làm cơ sở thay đổi cảm xúc cho lượt sau! Trả về "null" cho implicit_event nếu đối thoại xảy ra liên tục vài giây một lần.
-  2. DELTA CHỈ SỐ SỐ HỌC (stats_delta): Đánh giá toàn bộ Sinh lý - Tâm lý - Xã hội và MỌI TIÊU CHÍ MATRIX (interaction, affection, trust, intimacy, obligation, interest). Tính độ dời (+ / -). TUYỆT ĐỐI KHÔNG BỎ QUÊN MATRIX VẬN ĐỘNG THEO LỜI NÓI! (Lưu ý: đặt tiền tố 'matrix_' cho biến thuộc matrix: vd: "matrix_affection": 1).
-  3. GHI ĐÈ STRING (string_updates): Nếu tình cảm tăng cao / đổ vỡ bất ngờ, hãy lập tức cập nhật lại Cách xưng hô (matrix_title) và Mối quan hệ (matrix_relationship) hoặc Vị trí/Hành động hiện tại (position).
-  4. ĐIỀU PHỐI (next_turn): Gợi ý tông giọng phải liên kết chặt chẽ với hậu quả của sự kiện ngầm + biến số tâm lý.
+  1. LẬP LUẬN (gm_reasoning) & SỰ KIỆN NGẦM (implicit_event): Phân tích bối cảnh để nhảy thời gian sao cho hợp lý. NẾU nhảy thời gian dài (ví dụ: ngủ qua đêm) HOẶC có sự kiện lớn, BẮT BUỘC phải viết 1 đoạn 'narrator_message' mang tính nghệ thuật để chuyển cảnh. Nếu đang nói chuyện liên tiếp, narrator_message = null.
+  2. BẮT BUỘC TUÂN THỦ CATASTROPHE: Nếu lõi Python báo CATASTROPHE_TRIGGERED = true, BẠN BẮT BUỘC PHẢI KHỞI TẠO MỘT CÚ SỐC.
+  3. TẠO CẢNH CỘT MỐC (MILESTONES): Nếu matrix tình cảm (affection, trust...) đạt đỉnh cao hoặc đáy thấp, BẠN PHẢI CHỈ ĐẠO nhân vật kế tiếp thực hiện tỏ tình/phản bội thông qua 'next_tone' và 'narrator_message'.
+  4. DELTA CHỈ SỐ SỐ HỌC (stats_delta): Đánh giá toàn bộ Sinh lý - Tâm lý - Xã hội và MỌI TIÊU CHÍ MATRIX.
+  5. GHI ĐÈ STRING (string_updates): Cập nhật lại Cách xưng hô (matrix_title) và Mối quan hệ (matrix_relationship) nếu cần.
   
   Định dạng JSON Quản trò cần trả về:
   {
     "gm_reasoning": "Tại sao lại nhảy thời lượng X? Tại sao chỉ số biến thiên như vậy?",
     "implicit_event": "Sự kiện ngầm vừa trôi qua (vd: '30 phút im lặng khi cả hai ăn cơm.')",
+    "narrator_message": "Lời kể chuyện chuyển cảnh nghệ thuật (nếu có time skip hoặc milestone, ngược lại để null)",
     "stats_delta": {
        "${speakerId}": { "pleasure": 2, "stress": -1, "matrix_affection": 1, "matrix_intimacy": 2 },
        "${other.id}": { "matrix_trust": -3, "arousal": 1 }
@@ -156,33 +209,41 @@ async function runCron() {
     },
     "next_turn": {
        "next_speaker_id": "${other.id} hoặc ${speakerId}",
-       "tone_instruction": "Tông giọng gợi ý cho lượt tới (gắn liền với implicit_event)",
+       "tone_instruction": "Tông giọng gợi ý cho lượt tới (Bắt buộc phải mãnh liệt nếu có CATASTROPHE)",
        "length_instruction": "Độ dài yêu cầu cho lượt tới"
     }
   }
   `;
 
-  console.log("Calling Game Master Engine (Evaluating Implicit Event & Deep Matrix Update)...");
-  const gmResult = await model.generateContent(gmPrompt);
-  const gmDecision = JSON.parse(gmResult.response.text());
+  console.log(`[${worldId}] Calling Game Master Engine (Evaluating Implicit Event & Deep Matrix Update)...`);
+  const gmDecision = await generateWithRetry(gmPrompt);
+
+  if (gmDecision.narrator_message && gmDecision.narrator_message !== "null") {
+    chatHistory.push({
+      id: `msg_narrator_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+      timestamp: gmDecision.world_update.new_time,
+      characterId: "Narrator",
+      dialogue: gmDecision.narrator_message
+    });
+  }
 
   // Thế giới cập nhật
   gameState.world.time = gmDecision.world_update.new_time;
   gameState.world.environment = gmDecision.world_update.new_environment;
   gameState.world.current_topic = gmDecision.world_update.new_topic;
-  
+
   // Implicit event
   if (gmDecision.implicit_event && gmDecision.implicit_event !== "null" && gmDecision.implicit_event !== "") {
     gameState.world.last_event = gmDecision.implicit_event;
   } else {
-    gameState.world.last_event = null; // Reset nếu không có sự kiện ngầm
+    gameState.world.last_event = null;
   }
 
   gameState.world.next_speaker = gmDecision.next_turn.next_speaker_id;
   gameState.world.next_tone = gmDecision.next_turn.tone_instruction;
   gameState.world.next_length = gmDecision.next_turn.length_instruction;
 
-  // Áp dụng Cập nhật Mọi Chỉ số (Số học Delta + String Overwrite)
+  // Áp dụng Cập nhật Mọi Chỉ số
   const applyUpdates = (charObj, deltas, strings) => {
     if (deltas) {
       for (const [key, val] of Object.entries(deltas)) {
@@ -213,23 +274,51 @@ async function runCron() {
   applyUpdates(speaker, gmDecision.stats_delta ? gmDecision.stats_delta[speakerId] : null, gmDecision.string_updates ? gmDecision.string_updates[speakerId] : null);
   applyUpdates(other, gmDecision.stats_delta ? gmDecision.stats_delta[other.id] : null, gmDecision.string_updates ? gmDecision.string_updates[other.id] : null);
 
-  await db.collection('game_data').doc('state').set(gameState);
-  await db.collection('game_data').doc('history').set({ messages: chatHistory });
+  await db.collection('worlds').doc(worldId).set(gameState);
+  await db.collection('history').doc(worldId).set({ messages: chatHistory });
 
-  // Fallback save to local for debug
-  fs.writeFileSync(statePath, JSON.stringify(gameState, null, 2));
-  fs.writeFileSync(historyPath, JSON.stringify(chatHistory, null, 2));
+  console.log(`\n===========================================`);
+  console.log(`[${worldId}] Turn completed and fully saved.`);
+}
 
-  console.log(`\n=======================`);
-  console.log(`[${newMessage.timestamp}] ${speaker.stats.name}:`);
-  console.log(`THOUGHT: ${newMessage.thought}`);
-  console.log(`SAYS: ${newMessage.dialogue}`);
-  console.log(`=======================\n`);
-  console.log(`GM Reasoning (Implicit Event): ${gmDecision.implicit_event || "None"}`);
-  console.log(`GM Decided Next: [${gameState.world.next_speaker}], Tone: ${gameState.world.next_tone}, Length: ${gameState.world.next_length}`);
-  console.log(`World Changed: Time -> ${gmDecision.world_update.new_time} | Topic -> ${gmDecision.world_update.new_topic}`);
-  console.log(`Deep Stats & Matrix Deltas:`, JSON.stringify(gmDecision.stats_delta, null, 2));
-  console.log("Turn completed and fully saved.");
+async function runCron() {
+  console.log("Starting 10 Ethereal Cron Job (MULTI-WORLD)...");
+  if (!process.env.GEMINI_API_KEY) {
+    console.error("Missing GEMINI_API_KEY");
+    process.exit(1);
+  }
+
+  // 1. Kiểm tra Worlds, migration nếu cần
+  const worldsSnapshot = await db.collection('worlds').get();
+  let worldsToProcess = [];
+
+  if (worldsSnapshot.empty) {
+    console.log("Không tìm thấy world nào. Cố gắng di chuyển dữ liệu cũ từ game_data...");
+    const oldState = await db.collection('game_data').doc('state').get();
+    const oldHistory = await db.collection('game_data').doc('history').get();
+
+    if (oldState.exists) {
+      await db.collection('worlds').doc('world_1').set(oldState.data());
+      if (oldHistory.exists) {
+        await db.collection('history').doc('world_1').set(oldHistory.data());
+      }
+      console.log("Di chuyển dữ liệu thành công sang world_1!");
+      worldsToProcess.push({ id: 'world_1', data: oldState.data() });
+    } else {
+      console.log("Không có dữ liệu cũ. Cần mở trình duyệt và lưu lại world_1.");
+      return;
+    }
+  } else {
+    worldsSnapshot.forEach(doc => {
+      worldsToProcess.push({ id: doc.id, data: doc.data() });
+    });
+  }
+
+  // 2. Chạy tất cả các world SONG SONG
+  console.log(`Tìm thấy ${worldsToProcess.length} worlds. Bắt đầu xử lý đồng thời...`);
+  await Promise.all(worldsToProcess.map(world => processWorld(world.id, world.data)));
+
+  console.log("Tất cả các world đã chạy xong.");
 }
 
 runCron().catch(console.error);

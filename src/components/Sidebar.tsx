@@ -10,12 +10,18 @@ interface SidebarProps {
   setGameState: (state: GameState) => void;
   sidebarOpen: boolean;
   toggleSidebar: () => void;
+  currentWorldId: string;
+  setCurrentWorldId: (id: string) => void;
+  worldsList: {id: string, name: string}[];
 }
 
 const getCategories = () => [
   {
     title: "1. Thông Tin Cá Nhân (Hồ sơ)",
     keys: [
+      { key: "name", label: "Tên nhân vật (Name)", type: "string" },
+      { key: "age", label: "Tuổi (Age)", type: "string" },
+      { key: "gender", label: "Giới tính (Gender)", type: "select", options: ["Nam", "Nữ", "Phi nhị giới"] },
       { key: "job", label: "Công việc (Job)", type: "string" },
       { key: "position", label: "Vị trí hiện tại", type: "string" },
       { key: "relationship_list", label: "DS Mối quan hệ", type: "string" },
@@ -112,15 +118,15 @@ const matrixKeys = [
   { key: "interest", label: "Toan tính", type: "number" },
 ]
 
-export default function Sidebar({ gameState, setGameState, sidebarOpen, toggleSidebar }: SidebarProps) {
+export default function Sidebar({ gameState, setGameState, sidebarOpen, toggleSidebar, currentWorldId, setCurrentWorldId, worldsList }: SidebarProps) {
   const [activeTab, setActiveTab] = useState<'A' | 'B' | 'World'>('A')
   const [isSaving, setIsSaving] = useState(false)
 
   const handleSaveToCloud = async () => {
     setIsSaving(true)
     try {
-      await setDoc(doc(db, 'game_data', 'state'), gameState)
-      alert("✓ Đã lưu thay đổi vào hệ thống (Cloud) thành công!")
+      await setDoc(doc(db, 'worlds', currentWorldId), gameState)
+      alert("✓ Đã lưu thay đổi vào thế giới [" + currentWorldId + "] thành công!")
     } catch (error) {
       console.error(error)
       alert("⚠ Lỗi khi lưu, bạn có quyền ghi vào Firebase không?")
@@ -151,6 +157,23 @@ export default function Sidebar({ gameState, setGameState, sidebarOpen, toggleSi
           ) : (
             <input className={styles.formInput} value={val || ""} onChange={e => handleChange(index, section, field.key, e.target.value)} />
           )}
+        </div>
+      )
+    }
+
+    if (field.type === 'select') {
+      return (
+        <div key={field.key} className={styles.formGroup}>
+          <label className={styles.formLabel}>{field.label}</label>
+          <select 
+             className={styles.formInput} 
+             value={val || ""} 
+             onChange={e => handleChange(index, section, field.key, e.target.value)}
+             style={{ cursor: 'pointer' }}
+          >
+             <option value="" disabled>-- Chọn --</option>
+             {field.options.map((opt: string) => <option key={opt} value={opt}>{opt}</option>)}
+          </select>
         </div>
       )
     }
@@ -230,7 +253,29 @@ export default function Sidebar({ gameState, setGameState, sidebarOpen, toggleSi
         {sidebarOpen && (
           <div className={styles.headerTitles}>
             <h2 className={styles.title}>Bảng Điều Khiển</h2>
-            <p className={styles.subtitle}>Thiết lậpTham Số Môi Trường</p>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '4px' }}>
+              <select 
+                className={styles.formInput} 
+                style={{ padding: '6px', fontSize: '12px', width: 'auto', cursor: 'pointer', maxWidth: '150px' }}
+                value={currentWorldId}
+                onChange={(e) => {
+                  if (e.target.value === "CREATE_NEW") {
+                    const newId = `world_${Date.now()}`
+                    setCurrentWorldId(newId)
+                  } else {
+                    setCurrentWorldId(e.target.value)
+                  }
+                }}
+              >
+                {worldsList.map(w => (
+                   <option key={w.id} value={w.id}>{w.name}</option>
+                ))}
+                {!worldsList.find(w => w.id === currentWorldId) && (
+                   <option value={currentWorldId}>Thế giới mới chưa lưu...</option>
+                )}
+                <option value="CREATE_NEW">-- TẠO THẾ GIỚI MỚI --</option>
+              </select>
+            </div>
           </div>
         )}
       </div>
@@ -256,6 +301,10 @@ export default function Sidebar({ gameState, setGameState, sidebarOpen, toggleSi
         {activeTab === 'World' && (
         <div className={styles.formSection}>
           <h4 className={styles.title}>Quản Trò (Game Master)</h4>
+          <div className={styles.formGroup}>
+            <label className={styles.formLabel}>Tên Thế giới (World Name)</label>
+            <input className={styles.formInput} value={gameState.world.name || currentWorldId} onChange={(e) => setGameState({...gameState, world: {...gameState.world, name: e.target.value}})} />
+          </div>
           <div className={styles.formGroup}>
             <label className={styles.formLabel}>Thời Gian Thực/Ảo</label>
             <input className={styles.formInput} value={gameState.world.time} onChange={(e) => setGameState({...gameState, world: {...gameState.world, time: e.target.value}})} />

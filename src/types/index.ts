@@ -2,6 +2,7 @@ export interface Statistic {
   // 1. Hồ sơ
   name: string;
   date_of_birth: string;
+  age: string;
   gender: string;
   job: string;
   position: string;
@@ -73,6 +74,7 @@ export interface MatrixConnection {
 }
 
 export interface World {
+  name?: string;
   scenario: string;
   current_topic: string;
   environment: string;
@@ -99,6 +101,7 @@ export interface ChatMessage {
   id: string;
   timestamp: string;
   characterId: string;
-  thought: string;
-  dialogue: string;
+  thought?: string;
+  dialogue?: string;
+  dialogues?: string[];
 }
