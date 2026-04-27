@@ -139,7 +139,8 @@ async function processWorld(worldId, gameState) {
     const pythonArgs = JSON.stringify({ speaker: speakerId });
     const cmd = `python psychophysical_machine_core.py "${pythonArgs.replace(/"/g, '\\"')}"`;
     // Dùng execAsync để song song hóa giữa các thế giới
-    const { stdout } = await execAsync(cmd, { encoding: 'utf-8', env: { ...process.env, PYTHONIOENCODING: 'utf-8' } });
+    const { stdout, stderr } = await execAsync(cmd, { encoding: 'utf-8', env: { ...process.env, PYTHONIOENCODING: 'utf-8' } });
+    if (stderr) console.error(`[${worldId}] Python Core Stderr:`, stderr);
 
     const lines = stdout.trim().split('\n');
     for (let i = lines.length - 1; i >= 0; i--) {

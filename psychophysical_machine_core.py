@@ -285,7 +285,8 @@ class PsychophysicalProcessingMachine:
                     supabase.table("procedural_memory").insert(record_procedural).execute()
                     
             except Exception as e:
-                pass # Bỏ qua print lỗi để stdout chỉ xuất json
+                import sys
+                print(f"Supabase/Gemini Error: {e}", file=sys.stderr)
         
         return {
             "tick": t,
