@@ -151,7 +151,11 @@ async function processWorld(worldId, gameState) {
     console.log(`[${worldId}] Calling Python Psychophysical Core...`);
     
     // Map thông số nhân vật sang mảng số cho Python Core
-    const mlWeights = gameState.world.ml_weights || null;
+    let mlWeights = gameState.world.ml_weights || null;
+    if (typeof mlWeights === 'string') {
+      try { mlWeights = JSON.parse(mlWeights); } catch (e) { mlWeights = null; }
+    }
+    
     const speakerStats = speaker.stats;
     const speakerMatrix = speaker.matrix_to_other;
     
@@ -196,7 +200,7 @@ async function processWorld(worldId, gameState) {
           ppmCoreStatus = ppmData.status;
           isCatastrophe = ppmData.catastrophe_triggered;
           if (ppmData.retrieved_memory) retrievedMemory = ppmData.retrieved_memory;
-          if (ppmData.new_weights) gameState.world.ml_weights = ppmData.new_weights; // Lưu trọng số tiến hóa vào database
+          if (ppmData.new_weights) gameState.world.ml_weights = JSON.stringify(ppmData.new_weights); // Lưu dưới dạng chuỗi để tránh lỗi nested array của Firestore
           break;
         }
       } catch (e) { }
