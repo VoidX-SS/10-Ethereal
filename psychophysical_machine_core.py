@@ -41,25 +41,24 @@ class TensorTypes:
 # CÁC MODULE THẦN KINH - TOÁN HỌC CỐT LÕI
 # ==========================================
 
-def SRF_Retriever(
-    query: TensorTypes.Vector, 
-    context: TensorTypes.Vector, 
-    E_weight: float, 
-    A_weight: float, 
-    recency_factor: float, 
-    drift_penalty: float,
-    S_similarity: float, 
-    E_c: float, 
-    A_c: float, 
-    R_c: float, 
-    D_c: float
-) -> float:
-    """
-    Hàm tính toán truy xuất sinh học (Stone Retrieval Function - SRF).
-    Phương trình: R = S(q,c) + αE(c) + βA(c) + γR(c) - δD(c)
-    """
-    R = S_similarity + (E_weight * E_c) + (A_weight * A_c) + (recency_factor * R_c) - (drift_penalty * D_c)
-    return R
+    def retrieve(self, supabase_client, query_emb: list, match_threshold=0.6, match_count=3) -> list:
+        if not supabase_client: return []
+        try:
+            res = supabase_client.rpc('match_documents', {
+                'query_embedding': query_emb, 
+                'match_threshold': match_threshold, 
+                'match_count': match_count
+            }).execute()
+            
+            memories = []
+            for item in res.data:
+                # Giả lập chấm điểm SRF đơn giản dựa trên similarity
+                score = item['similarity'] * 1.5 # (S_similarity)
+                memories.append({"content": item['content'], "score": score})
+            memories.sort(key=lambda x: x["score"], reverse=True)
+            return memories
+        except Exception as e:
+            return [{"error": str(e)}]
 
 class HomeostaticRegulator:
     """1. Sự Điều Hòa Cân Bằng Nội Môi (Homeostatic Regulation)"""
@@ -161,11 +160,14 @@ class HMM_IntentRecognizer:
         
     def infer_intent(self, observation_window: TensorTypes.Matrix) -> TensorTypes.Vector:
         """
-        Thuật toán Viterbi / Forward-Backward xử lý mã hóa tốc độ thay đổi (Rate of change).
-        Trả về vector xác suất ý định. (Mockup logic tensor)
+        Xử lý chuỗi quan sát để đoán ý định bằng Forward pass đơn giản.
         """
-        # Tính toán tự động vi phân xác suất ý định
-        intent_probs = F.softmax(torch.matmul(self.A, self.pi), dim=0)
+        # obs: tensor [obs_dim]
+        obs = observation_window[-1] if len(observation_window.shape) > 1 else observation_window
+        # Emission prob (num_states)
+        emission = F.softmax(torch.matmul(self.B, obs), dim=0)
+        # Intent prob (tích hợp Pi và Emission)
+        intent_probs = F.softmax(self.pi * emission + torch.matmul(self.A, self.pi), dim=0)
         return intent_probs
 
 class NetworkResonance:
@@ -176,9 +178,15 @@ class NetworkResonance:
 
 class GoalTreeOrchestrator:
     """Mạng Lưới Điều Phối Cây Mục Tiêu"""
-    def execute_nodes(self):
-        # Nút Sequence (->), Fallback (?), Parallel (=>)
-        return "GOAL_TREE_EXECUTING_NORMAL_FLOW"
+    def execute_nodes(self, intent_vector: TensorTypes.Vector):
+        intent_idx = torch.argmax(intent_vector).item()
+        intents = [
+            "Xu hướng phòng thủ, khép kín",
+            "Xu hướng muốn kết nối, cởi mở",
+            "Xu hướng thăm dò, tò mò"
+        ]
+        chosen_intent = intents[intent_idx] if intent_idx < len(intents) else "Bình thường"
+        return f"GOAL_TREE_EXECUTING: {chosen_intent}"
 
 # ==========================================
 # CHỈ THỊ 1: CẤU TRÚC DÒNG DỮ LIỆU THỜI GIAN THỰC
@@ -197,6 +205,28 @@ class PsychophysicalProcessingMachine:
         self.amygdala = AmygdalaLogicGate()
         self.goal_tree = GoalTreeOrchestrator()
         self.resonance = NetworkResonance()
+        self.srf = None # Chuyển thành method cục bộ hoặc class riêng
+        self.optimizer = torch.optim.Adam([
+            self.hmm.A, self.hmm.B, self.hmm.pi, self.homeostasis.state
+        ], lr=0.01)
+
+    def load_weights(self, weights_dict: dict):
+        if not weights_dict: return
+        try:
+            if "hmm_A" in weights_dict: self.hmm.A.data = torch.tensor(weights_dict["hmm_A"])
+            if "hmm_B" in weights_dict: self.hmm.B.data = torch.tensor(weights_dict["hmm_B"])
+            if "hmm_pi" in weights_dict: self.hmm.pi.data = torch.tensor(weights_dict["hmm_pi"])
+            if "homeostasis_state" in weights_dict: self.homeostasis.state.data = torch.tensor(weights_dict["homeostasis_state"])
+        except Exception as e:
+            pass
+
+    def export_weights(self) -> dict:
+        return {
+            "hmm_A": self.hmm.A.detach().numpy().tolist(),
+            "hmm_B": self.hmm.B.detach().numpy().tolist(),
+            "hmm_pi": self.hmm.pi.detach().numpy().tolist(),
+            "homeostasis_state": self.homeostasis.state.detach().numpy().tolist()
+        }
 
     def event_loop_tick(
         self, 
@@ -207,7 +237,8 @@ class PsychophysicalProcessingMachine:
         V_S_t: TensorTypes.HighDimVector, 
         V_S_t_plus_1: TensorTypes.HighDimVector,
         pred_probs: TensorTypes.Vector,
-        core_probs: TensorTypes.Vector
+        core_probs: TensorTypes.Vector,
+        query_text: str = ""
     ) -> Dict[str, Any]:
         """
         Vòng lặp sự kiện (Event Loop) cốt lõi của PPM.
@@ -226,8 +257,8 @@ class PsychophysicalProcessingMachine:
         alpha_val = torch.norm(I_t) + torch.abs(torch.min(delta_t, torch.zeros_like(delta_t))).sum()
         beta_val = self.homeostasis.state[1] + kl_div # Tích lũy Stress (index 1) và Dissonance
         
-        alpha = torch.tensor([alpha_val], requires_grad=True)
-        beta = torch.tensor([beta_val], requires_grad=True)
+        alpha = torch.tensor([alpha_val.item()], requires_grad=True)
+        beta = torch.tensor([beta_val.item()], requires_grad=True)
         
         # Kiểm tra phương trình Y^3 - βY - α = 0 thông qua biệt thức Δ
         catastrophe_triggered, delta_val = self.cusp_eval.calculate_bifurcation(alpha, beta)
@@ -239,11 +270,30 @@ class PsychophysicalProcessingMachine:
             system_status = f"AMYGDALA_HIJACK_ACTIVE: {action_executed}"
         else:
             CATASTROPHE_TRIGGERED = False
-            system_status = self.goal_tree.execute_nodes()
+            system_status = self.goal_tree.execute_nodes(I_t)
             
-        # 5. Consolidation (Hợp nhất ký ức)
+        # 5. Consolidation & Tối ưu hóa (Backpropagation)
+        self.optimizer.zero_grad()
+        loss = kl_div + torch.norm(delta_t) + self.homeostasis.calculate_loss()
+        loss.backward()
+        self.optimizer.step()
+        
         E_c = alpha_val.item() # Gán E(c) dựa trên cường độ Amygdala
+        # Resonance: Ảnh hưởng nội bộ nhân vật (không lan truyền sang world khác)
         self.resonance.run_cognirank(E_c, torch.norm(delta_t).item())
+        
+        # 6. SRF Retrieval (Ký ức)
+        retrieved_memory_text = ""
+        if supabase and gemini_client and query_text:
+            try:
+                emb_res = gemini_client.models.embed_content(model='gemini-embedding-2', contents=query_text)
+                q_emb = emb_res.embeddings[0].values
+                # SRF search
+                res = supabase.rpc('match_documents', {'query_embedding': q_emb, 'match_threshold': 0.6, 'match_count': 2}).execute()
+                if res.data:
+                    retrieved_memory_text = " | ".join([d['content'] for d in res.data])
+            except Exception as e:
+                retrieved_memory_text = f"Lỗi truy xuất: {str(e)}"
         
         # Lưu vào Supabase (Episodic Memory)
         if supabase:
@@ -290,11 +340,13 @@ class PsychophysicalProcessingMachine:
         
         return {
             "tick": t,
-            "intent_vector": I_t,
-            "rpe_vector": delta_t,
-            "catastrophe_delta": delta_val,
+            "intent_vector": I_t.detach().numpy().tolist(),
+            "rpe_vector": delta_t.detach().numpy().tolist(),
+            "catastrophe_delta": float(delta_val),
             "catastrophe_triggered": CATASTROPHE_TRIGGERED,
-            "status": system_status
+            "status": system_status,
+            "retrieved_memory": retrieved_memory_text,
+            "new_weights": self.export_weights()
         }
 
 if __name__ == "__main__":
@@ -307,30 +359,35 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         try:
             input_data = json.loads(sys.argv[1])
-            # Có thể lấy biến từ input_data để cập nhật seed
-            # nhưng tạm thời sẽ dùng random để mô phỏng
-            obs_seq = torch.rand(3, 5) 
-            R_t = torch.rand(3)
-            V_S_t = torch.rand(3)
-            V_S_t_plus_1 = torch.rand(3)
-            pred_probs = torch.tensor([0.2, 0.5, 0.3])
-            core_probs = torch.tensor([0.3, 0.4, 0.3])
+            if "ml_weights" in input_data and input_data["ml_weights"]:
+                ppm_core.load_weights(input_data["ml_weights"])
+                
+            obs_seq = torch.tensor(input_data.get("obs_seq", [[0.5]*5]))
+            R_t = torch.tensor(input_data.get("R_t", [0.5]*3))
+            V_S_t = torch.tensor(input_data.get("V_S_t", [0.5]*3))
+            V_S_t_plus_1 = torch.tensor(input_data.get("V_S_t_plus_1", [0.5]*3))
+            pred_probs = torch.tensor(input_data.get("pred_probs", [0.5]*3))
+            core_probs = torch.tensor(input_data.get("core_probs", [0.5]*3))
+            query_text = input_data.get("query_text", "")
             
             result = ppm_core.event_loop_tick(
                 t=time.time(), 
-                dt=0.1, 
+                dt=1.0, 
                 obs_seq=obs_seq, 
                 R_t=R_t, 
                 V_S_t=V_S_t, 
                 V_S_t_plus_1=V_S_t_plus_1, 
                 pred_probs=pred_probs, 
-                core_probs=core_probs
+                core_probs=core_probs,
+                query_text=query_text
             )
             
             clean_result = {
                 "catastrophe_triggered": result["catastrophe_triggered"],
                 "status": result["status"],
-                "catastrophe_delta": float(result["catastrophe_delta"])
+                "catastrophe_delta": float(result["catastrophe_delta"]),
+                "retrieved_memory": result.get("retrieved_memory", ""),
+                "new_weights": result["new_weights"]
             }
             print(json.dumps(clean_result))
         except Exception as e:

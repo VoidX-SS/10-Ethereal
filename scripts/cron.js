@@ -58,8 +58,19 @@ async function processWorld(worldId, gameState) {
   const historyDoc = await db.collection('history').doc(worldId).get();
   let chatHistory = historyDoc.exists ? historyDoc.data().messages : [];
 
-  const speakerId = gameState.world.next_speaker || 'char_A';
-  const speaker = gameState.characters.find(c => c.id === speakerId);
+  let speakerId = gameState.world.next_speaker || 'char_A';
+  let speaker = gameState.characters.find(c => c.id === speakerId);
+  
+  // HOTFIX: Đề phòng trường hợp next_speaker bị lưu nhầm thành Tên nhân vật (vd: "Mizi") thay vì ID ("char_B")
+  if (!speaker) {
+    speaker = gameState.characters.find(c => c.stats.name === speakerId);
+    if (speaker) speakerId = speaker.id;
+    else {
+      speakerId = 'char_A';
+      speaker = gameState.characters.find(c => c.id === speakerId);
+    }
+  }
+  
   const other = gameState.characters.find(c => c.id !== speakerId);
 
   // ==========================================
@@ -98,8 +109,8 @@ async function processWorld(worldId, gameState) {
   Sắc thái biểu đạt (Tránh lan man sai chủ đề): "${gameState.world.next_tone}".
   Độ dài phát ngôn: "${gameState.world.next_length}".
   
-  Lịch sử 4 thoại gần đây (Bối cảnh ngay lúc này):
-  ${JSON.stringify(chatHistory.slice(-4))}
+  Lịch sử 20 thoại gần đây (Bối cảnh ngay lúc này):
+  ${JSON.stringify(chatHistory.slice(-20))}
 
   NHIỆM VỤ (Vai diễn của bạn):
   Giữ vững đúng character tính cách, trả về JSON gồm:
@@ -134,9 +145,44 @@ async function processWorld(worldId, gameState) {
   // ==========================================
   let ppmCoreStatus = "Bình thường";
   let isCatastrophe = false;
+  let retrievedMemory = "";
+  
   try {
     console.log(`[${worldId}] Calling Python Psychophysical Core...`);
-    const pythonArgs = JSON.stringify({ speaker: speakerId });
+    
+    // Map thông số nhân vật sang mảng số cho Python Core
+    const mlWeights = gameState.world.ml_weights || null;
+    const speakerStats = speaker.stats;
+    const speakerMatrix = speaker.matrix_to_other;
+    
+    const obs_seq = [[
+      (speakerStats.health || 50)/100.0, 
+      (speakerStats.stress || 50)/100.0, 
+      (speakerStats.pleasure || 50)/100.0, 
+      (speakerMatrix.affection || 50)/100.0, 
+      (speakerMatrix.trust || 50)/100.0
+    ]];
+    const R_t = [(speakerStats.pleasure || 50)/100.0, (speakerMatrix.affection || 50)/100.0, (speakerStats.comfortable || 50)/100.0];
+    const V_S_t = [(speakerStats.will_power || 50)/100.0, (speakerStats.faith_index || 50)/100.0, (speakerMatrix.trust || 50)/100.0];
+    const pred_probs = [(speakerStats.bias || 50)/100.0, (speakerStats.logic_emotion || 50)/100.0, (speakerStats.openness || 50)/100.0];
+    const core_probs = [0.5, 0.5, 0.5]; // Trạng thái cân bằng lý tưởng
+    
+    // Gom toàn bộ thoại làm query text để truy xuất ký ức
+    const query_text = chatHistory.slice(-4).map(m => m.dialogue || m.thought).join(" ");
+    
+    const pythonArgsObj = {
+      speaker: speakerId,
+      ml_weights: mlWeights,
+      obs_seq: obs_seq,
+      R_t: R_t,
+      V_S_t: V_S_t,
+      V_S_t_plus_1: V_S_t, // Giả định kỳ vọng không đổi trước mắt
+      pred_probs: pred_probs,
+      core_probs: core_probs,
+      query_text: query_text
+    };
+    
+    const pythonArgs = JSON.stringify(pythonArgsObj);
     const cmd = `python psychophysical_machine_core.py "${pythonArgs.replace(/"/g, '\\"')}"`;
     // Dùng execAsync để song song hóa giữa các thế giới
     const { stdout, stderr } = await execAsync(cmd, { encoding: 'utf-8', env: { ...process.env, PYTHONIOENCODING: 'utf-8' } });
@@ -149,6 +195,8 @@ async function processWorld(worldId, gameState) {
         if (ppmData.status) {
           ppmCoreStatus = ppmData.status;
           isCatastrophe = ppmData.catastrophe_triggered;
+          if (ppmData.retrieved_memory) retrievedMemory = ppmData.retrieved_memory;
+          if (ppmData.new_weights) gameState.world.ml_weights = ppmData.new_weights; // Lưu trọng số tiến hóa vào database
           break;
         }
       } catch (e) { }
@@ -171,7 +219,7 @@ async function processWorld(worldId, gameState) {
   Nhân vật ${other.stats.name} (Người kia) -> Giới tính: ${other.stats.gender || "Không rõ"}, Tuổi: ${other.stats.age || other.stats.date_of_birth}
 
   Lịch sử cuộc trò chuyện (Hành động vừa xảy ra là của ${speaker.stats.name}):
-  ${JSON.stringify(chatHistory.slice(-5))}
+  ${JSON.stringify(chatHistory.slice(-21))}
 
   TRẠNG THÁI HIỆN TẠI (Trước khi có hành động/lời nói trên):
   Thời gian: ${gameState.world.time}
@@ -182,6 +230,7 @@ async function processWorld(worldId, gameState) {
 
   KẾT QUẢ ĐÁNH GIÁ TỪ LÕI VẬT LÝ TÂM LÝ (PPM CORE):
   Tình trạng: ${ppmCoreStatus} (Đã bị sụp đổ tâm lý Amygdala Hijack? ${isCatastrophe})
+  Ký ức mơ hồ vừa truy xuất được từ tiềm thức (có thể dùng để tạo Milestone hoặc Implicit Event): "${retrievedMemory || "Không có"}"
 
   NHIỆM VỤ QUẢN TRÒ (QUAN TRỌNG NHẤT LÀ CẬP NHẬT TRIỆT ĐỂ MATRIX, THỜI GIAN, TRẠNG THÁI):
   1. LẬP LUẬN (gm_reasoning) & SỰ KIỆN NGẦM (implicit_event): Phân tích bối cảnh để nhảy thời gian sao cho hợp lý. NẾU nhảy thời gian dài (ví dụ: ngủ qua đêm) HOẶC có sự kiện lớn, BẮT BUỘC phải viết 1 đoạn 'narrator_message' mang tính nghệ thuật để chuyển cảnh. Nếu đang nói chuyện liên tiếp, narrator_message = null.
