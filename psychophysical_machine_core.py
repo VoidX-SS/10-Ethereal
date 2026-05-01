@@ -188,6 +188,44 @@ class GoalTreeOrchestrator:
         chosen_intent = intents[intent_idx] if intent_idx < len(intents) else "Bình thường"
         return f"GOAL_TREE_EXECUTING: {chosen_intent}"
 
+class DeepBayesianToM(torch.nn.Module):
+    """8. Deep Bayesian Theory of Mind (Hiệu ứng Rashomon)"""
+    def __init__(self, num_stats: int):
+        super().__init__()
+        # Mạng dự đoán tham số Bayes từ chỉ số người nói và người nghe (ghép lại: 2 * num_stats)
+        self.predictor = torch.nn.Linear(num_stats * 2, 2)
+        
+    def forward(self, speaker_stats: TensorTypes.Vector, listener_stats: TensorTypes.Vector) -> Tuple[bool, float]:
+        # Ghép 2 vector
+        combined_stats = torch.cat([speaker_stats, listener_stats], dim=0)
+        # Dự đoán Prior và Sensitivity
+        out = torch.sigmoid(self.predictor(combined_stats))
+        prior_skepticism = out[0]
+        sensitivity = out[1]
+        
+        # Áp dụng định lý Bayes (Đơn giản hóa)
+        # Xác suất H (Hoài nghi) khi có bằng chứng E (Dấu hiệu dối trá)
+        # P(H|E) = (P(E|H) * P(H)) / P(E)
+        posterior = (sensitivity * prior_skepticism) / (
+            (sensitivity * prior_skepticism) + ((1.0 - sensitivity) * (1.0 - prior_skepticism)) + 1e-9
+        )
+        
+        # Nếu posterior quá cao, kích hoạt hiệu ứng Rashomon
+        rashomon_triggered = bool(posterior.item() > 0.8)
+        return rashomon_triggered, posterior
+
+class GlobalProjectionNetwork(torch.nn.Module):
+    """Mạng Chiếu Toàn Cục (Global Projection Network)"""
+    def __init__(self, num_stats: int, target_dim: int):
+        super().__init__()
+        self.projection_R = torch.nn.Linear(num_stats, target_dim)
+        self.projection_V = torch.nn.Linear(num_stats, target_dim)
+        
+    def forward(self, flat_stats: TensorTypes.Vector) -> Tuple[TensorTypes.Vector, TensorTypes.Vector]:
+        R_t = torch.sigmoid(self.projection_R(flat_stats))
+        V_S_t = torch.sigmoid(self.projection_V(flat_stats))
+        return R_t, V_S_t
+
 # ==========================================
 # CHỈ THỊ 1: CẤU TRÚC DÒNG DỮ LIỆU THỜI GIAN THỰC
 # ==========================================
@@ -206,9 +244,14 @@ class PsychophysicalProcessingMachine:
         self.goal_tree = GoalTreeOrchestrator()
         self.resonance = NetworkResonance()
         self.srf = None # Chuyển thành method cục bộ hoặc class riêng
+        
+        self.num_stats = 30 # Mặc định 30 chỉ số (có thể tự resize nếu cần)
+        self.projection_net = GlobalProjectionNetwork(self.num_stats, 3)
+        self.bayesian_tom = DeepBayesianToM(self.num_stats)
+        
         self.optimizer = torch.optim.Adam([
             self.hmm.A, self.hmm.B, self.hmm.pi, self.homeostasis.state
-        ], lr=0.01)
+        ] + list(self.projection_net.parameters()) + list(self.bayesian_tom.parameters()), lr=0.01)
 
     def load_weights(self, weights_dict: dict):
         if not weights_dict: return
@@ -217,6 +260,12 @@ class PsychophysicalProcessingMachine:
             if "hmm_B" in weights_dict: self.hmm.B.data = torch.tensor(weights_dict["hmm_B"])
             if "hmm_pi" in weights_dict: self.hmm.pi.data = torch.tensor(weights_dict["hmm_pi"])
             if "homeostasis_state" in weights_dict: self.homeostasis.state.data = torch.tensor(weights_dict["homeostasis_state"])
+            if "proj_R_weight" in weights_dict: self.projection_net.projection_R.weight.data = torch.tensor(weights_dict["proj_R_weight"])
+            if "proj_R_bias" in weights_dict: self.projection_net.projection_R.bias.data = torch.tensor(weights_dict["proj_R_bias"])
+            if "proj_V_weight" in weights_dict: self.projection_net.projection_V.weight.data = torch.tensor(weights_dict["proj_V_weight"])
+            if "proj_V_bias" in weights_dict: self.projection_net.projection_V.bias.data = torch.tensor(weights_dict["proj_V_bias"])
+            if "tom_predictor_weight" in weights_dict: self.bayesian_tom.predictor.weight.data = torch.tensor(weights_dict["tom_predictor_weight"])
+            if "tom_predictor_bias" in weights_dict: self.bayesian_tom.predictor.bias.data = torch.tensor(weights_dict["tom_predictor_bias"])
         except Exception as e:
             pass
 
@@ -225,7 +274,13 @@ class PsychophysicalProcessingMachine:
             "hmm_A": self.hmm.A.detach().numpy().tolist(),
             "hmm_B": self.hmm.B.detach().numpy().tolist(),
             "hmm_pi": self.hmm.pi.detach().numpy().tolist(),
-            "homeostasis_state": self.homeostasis.state.detach().numpy().tolist()
+            "homeostasis_state": self.homeostasis.state.detach().numpy().tolist(),
+            "proj_R_weight": self.projection_net.projection_R.weight.detach().numpy().tolist(),
+            "proj_R_bias": self.projection_net.projection_R.bias.detach().numpy().tolist(),
+            "proj_V_weight": self.projection_net.projection_V.weight.detach().numpy().tolist(),
+            "proj_V_bias": self.projection_net.projection_V.bias.detach().numpy().tolist(),
+            "tom_predictor_weight": self.bayesian_tom.predictor.weight.detach().numpy().tolist(),
+            "tom_predictor_bias": self.bayesian_tom.predictor.bias.detach().numpy().tolist()
         }
 
     def event_loop_tick(
@@ -238,11 +293,31 @@ class PsychophysicalProcessingMachine:
         V_S_t_plus_1: TensorTypes.HighDimVector,
         pred_probs: TensorTypes.Vector,
         core_probs: TensorTypes.Vector,
-        query_text: str = ""
+        query_text: str = "",
+        world_id: str = "unknown_world",
+        flat_stats: Optional[TensorTypes.Vector] = None,
+        listener_stats: Optional[TensorTypes.Vector] = None
     ) -> Dict[str, Any]:
         """
         Vòng lặp sự kiện (Event Loop) cốt lõi của PPM.
         """
+        # 0. Global Projection & Bayesian ToM (Nếu có flat_stats)
+        rashomon_triggered = False
+        posterior_val = 0.0
+        if flat_stats is not None:
+            if flat_stats.shape[0] == self.num_stats:
+                # TS sends 0-100, normalize to 0-1
+                flat_stats = flat_stats / 100.0
+                proj_R, proj_V = self.projection_net(flat_stats)
+                # Tạm thời cập nhật R_t và V_S_t từ mạng nơ-ron (Ghi đè giá trị cũ)
+                R_t = proj_R
+                V_S_t = proj_V
+                V_S_t_plus_1 = proj_V # Giả định tương lai gần
+                
+            if listener_stats is not None and listener_stats.shape[0] == self.num_stats:
+                rashomon_triggered, posterior = self.bayesian_tom(flat_stats, listener_stats)
+                posterior_val = posterior.item()
+
         # 1. Perception (Nhận thức)
         I_t = self.hmm.infer_intent(obs_seq)
         
@@ -272,9 +347,18 @@ class PsychophysicalProcessingMachine:
             CATASTROPHE_TRIGGERED = False
             system_status = self.goal_tree.execute_nodes(I_t)
             
+        intent_idx = torch.argmax(I_t).item()
+        intents = [
+            "Xu hướng phòng thủ, khép kín",
+            "Xu hướng muốn kết nối, cởi mở",
+            "Xu hướng thăm dò, tò tự"
+        ]
+        intent_vector_dominant = intents[intent_idx] if intent_idx < len(intents) else "Bình thường"
+            
         # 5. Consolidation & Tối ưu hóa (Backpropagation)
+        # De-lobotomize: Loại bỏ delta_t (RPE) khỏi hàm Loss để AI cảm nhận cú sốc thay vì ép nó về 0.
         self.optimizer.zero_grad()
-        loss = kl_div + torch.norm(delta_t) + self.homeostasis.calculate_loss()
+        loss = kl_div + self.homeostasis.calculate_loss()
         loss.backward()
         self.optimizer.step()
         
@@ -284,49 +368,83 @@ class PsychophysicalProcessingMachine:
         
         # 6. SRF Retrieval (Ký ức)
         retrieved_memory_text = ""
+        # Tính toán Dynamic Threshold dựa trên mức độ Căng thẳng (Stress)
+        current_stress_tensor = self.homeostasis.state[1].item()
+        dynamic_threshold = 0.5 + (0.3 * current_stress_tensor)
+        
         if supabase and gemini_client and query_text:
             try:
                 emb_res = gemini_client.models.embed_content(model='gemini-embedding-2', contents=query_text)
                 q_emb = emb_res.embeddings[0].values
-                # SRF search
-                res = supabase.rpc('match_documents', {'query_embedding': q_emb, 'match_threshold': 0.6, 'match_count': 2}).execute()
-                if res.data:
-                    retrieved_memory_text = " | ".join([d['content'] for d in res.data])
+                # SRF search (Dual-RAG: Semantic + Episodic)
+                sem_res = supabase.rpc('match_semantic_documents', {
+                    'query_embedding': q_emb, 
+                    'filter_world_id': world_id,
+                    'match_threshold': 0.6, 
+                    'match_count': 2
+                }).execute()
+                epi_res = supabase.rpc('match_episodic_documents', {
+                    'query_embedding': q_emb, 
+                    'filter_world_id': world_id,
+                    'match_threshold': dynamic_threshold, 
+                    'match_count': 2
+                }).execute()
+                
+                memories = []
+                if sem_res.data:
+                    memories.extend([f"[Kiến thức]: {d['content']}" for d in sem_res.data])
+                if epi_res.data:
+                    memories.extend([f"[Kinh nghiệm]: {d['event_description']} (Trọng số cảm xúc: {d['emotional_weight']})" for d in epi_res.data])
+                
+                if memories:
+                    retrieved_memory_text = " | ".join(memories)
             except Exception as e:
                 retrieved_memory_text = f"Lỗi truy xuất: {str(e)}"
         
-        # Lưu vào Supabase (Episodic Memory)
-        if supabase:
+        # Lưu vào Supabase (Dual-RAG Hybrid)
+        def save_to_supabase_async():
+            if not supabase: return
             try:
+                # 1. Lưu Episodic Memory (Có nhúng Vector)
+                event_desc = query_text if query_text else f"Tick {t}: Không có hội thoại. Trạng thái: {system_status}"
+                epi_embedding = []
+                if gemini_client and query_text:
+                    epi_emb_res = gemini_client.models.embed_content(model='gemini-embedding-2', contents=event_desc)
+                    epi_embedding = epi_emb_res.embeddings[0].values
+                
                 record_episodic = {
-                    "event_description": f"Tick {t}: Intent={I_t.detach().numpy().tolist()}, Dissonance={kl_div.item():.4f}, Status={system_status}",
+                    "world_id": world_id,
+                    "event_description": event_desc,
+                    "embedding": epi_embedding if epi_embedding else None,
                     "emotional_weight": E_c,
-                    "associative_strength": 0.5, # Giả lập giá trị
+                    "associative_strength": 0.5,
                     "recency": float(t),
                     "drift": 0.0
                 }
                 supabase.table("episodic_memory").insert(record_episodic).execute()
                 
-                # Lưu Semantic Memory (Embedding 3072 chiều với gemini-embedding-2)
-                semantic_content = f"Tại tick {t}, nhân vật ghi nhận mức độ xung đột Dissonance: {kl_div.item():.4f}. Trạng thái hệ thống: {system_status}"
+                # 2. Lưu Semantic Memory (Có nhúng Vector, chứa kiến thức đúc kết)
+                semantic_content = f"Sự kiện: {query_text}. Đánh giá đúc kết: Mức độ xung đột Dissonance nội tâm là {kl_div.item():.4f}. Phản ứng hệ thống: {system_status}."
                 if gemini_client:
-                    response = gemini_client.models.embed_content(
+                    sem_emb_res = gemini_client.models.embed_content(
                         model='gemini-embedding-2',
                         contents=semantic_content
                     )
-                    embedding_vector = response.embeddings[0].values
+                    sem_embedding = sem_emb_res.embeddings[0].values
                     
                     record_semantic = {
+                        "world_id": world_id,
                         "content": semantic_content,
-                        "embedding": embedding_vector,
+                        "embedding": sem_embedding,
                         "metadata": {"dissonance": kl_div.item(), "tick": t}
                     }
                     supabase.table("semantic_memory").insert(record_semantic).execute()
                 
-                # Lưu Procedural Memory nếu Catastrophe Triggered
+                # 3. Lưu Procedural Memory (Không Vector, Chỉ có Rule)
                 if CATASTROPHE_TRIGGERED:
                     rule_name = f"AMYGDALA_HIJACK_RULE_{int(t)}"
                     record_procedural = {
+                        "world_id": world_id,
                         "rule_name": rule_name,
                         "condition_logic": {"stress_threshold": "high", "trigger": "amygdala_hijack"},
                         "action_result": action_executed,
@@ -336,15 +454,24 @@ class PsychophysicalProcessingMachine:
                     
             except Exception as e:
                 import sys
-                print(f"Supabase/Gemini Error: {e}", file=sys.stderr)
+                print(f"Supabase/Gemini Error in Background Thread: {e}", file=sys.stderr)
+                
+        # Fire and forget
+        import threading
+        if supabase:
+            threading.Thread(target=save_to_supabase_async, daemon=True).start()
         
         return {
             "tick": t,
             "intent_vector": I_t.detach().numpy().tolist(),
+            "intent_vector_dominant": intent_vector_dominant,
             "rpe_vector": delta_t.detach().numpy().tolist(),
+            "kl_div": float(kl_div.item()),
             "catastrophe_delta": float(delta_val),
             "catastrophe_triggered": CATASTROPHE_TRIGGERED,
             "status": system_status,
+            "rashomon_triggered": rashomon_triggered,
+            "rashomon_posterior": posterior_val,
             "retrieved_memory": retrieved_memory_text,
             "new_weights": self.export_weights()
         }
@@ -369,6 +496,14 @@ if __name__ == "__main__":
             pred_probs = torch.tensor(input_data.get("pred_probs", [0.5]*3))
             core_probs = torch.tensor(input_data.get("core_probs", [0.5]*3))
             query_text = input_data.get("query_text", "")
+            world_id = input_data.get("world_id", "unknown_world")
+            
+            flat_stats = None
+            if "flat_stats" in input_data:
+                flat_stats = torch.tensor(input_data["flat_stats"], dtype=torch.float32)
+            listener_stats = None
+            if "listener_stats" in input_data:
+                listener_stats = torch.tensor(input_data["listener_stats"], dtype=torch.float32)
             
             result = ppm_core.event_loop_tick(
                 t=time.time(), 
@@ -379,13 +514,18 @@ if __name__ == "__main__":
                 V_S_t_plus_1=V_S_t_plus_1, 
                 pred_probs=pred_probs, 
                 core_probs=core_probs,
-                query_text=query_text
+                query_text=query_text,
+                world_id=world_id,
+                flat_stats=flat_stats,
+                listener_stats=listener_stats
             )
             
             clean_result = {
                 "catastrophe_triggered": result["catastrophe_triggered"],
                 "status": result["status"],
                 "catastrophe_delta": float(result["catastrophe_delta"]),
+                "kl_div": float(result["kl_div"]),
+                "intent_vector_dominant": result["intent_vector_dominant"],
                 "retrieved_memory": result.get("retrieved_memory", ""),
                 "new_weights": result["new_weights"]
             }

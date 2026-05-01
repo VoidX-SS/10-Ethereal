@@ -83,13 +83,18 @@ export interface World {
   next_speaker: string;
   next_tone: string;
   next_length: string;
+  is_paused?: boolean;
+  time_skip?: number;
+  is_together?: boolean;
+  ml_weights?: string | null;
+  last_event?: string;
 }
 
 export interface Character {
   id: string;
   roleplay_prompt: string; 
   stats: Statistic;
-  matrix_to_other: MatrixConnection;
+  relationships?: Record<string, MatrixConnection>;
 }
 
 export interface GameState {

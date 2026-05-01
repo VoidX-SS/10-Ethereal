@@ -1,9 +1,8 @@
 import { useState } from 'react'
-import { doc, setDoc } from 'firebase/firestore'
-import { db } from '../firebase'
-import { Menu, User, Globe, Save } from 'lucide-react'
+import { Menu, User, Edit3, Settings, ArrowLeft, Trash2 } from 'lucide-react'
 import styles from './Sidebar.module.css'
-import type { GameState, Character } from '../types'
+import BigEditModal from './BigEditModal'
+import type { GameState } from '../types'
 
 interface SidebarProps {
   gameState: GameState;
@@ -12,332 +11,130 @@ interface SidebarProps {
   toggleSidebar: () => void;
   currentWorldId: string;
   setCurrentWorldId: (id: string) => void;
-  worldsList: {id: string, name: string}[];
+  onDeleteCharacter: (id: string) => void;
 }
 
-const getCategories = () => [
-  {
-    title: "1. Thông Tin Cá Nhân (Hồ sơ)",
-    keys: [
-      { key: "name", label: "Tên nhân vật (Name)", type: "string" },
-      { key: "age", label: "Tuổi (Age)", type: "string" },
-      { key: "gender", label: "Giới tính (Gender)", type: "select", options: ["Nam", "Nữ", "Phi nhị giới"] },
-      { key: "job", label: "Công việc (Job)", type: "string" },
-      { key: "position", label: "Vị trí hiện tại", type: "string" },
-      { key: "relationship_list", label: "DS Mối quan hệ", type: "string" },
-      { key: "fortune", label: "Tài sản", type: "string" },
-      { key: "faith", label: "Niềm tin", type: "string" },
-      { key: "passion", label: "Ước mơ / Đam mê", type: "string" },
-      { key: "emotional_pain", label: "Vết thương tâm lý", type: "string" },
-      { key: "love_hates", label: "Yêu / Ghét", type: "string" },
-      { key: "pros_cons", label: "Điểm mạnh / Yếu", type: "string" },
-    ]
-  },
-  {
-    title: "Trạng Thái Bề Ngoài",
-    grid: true,
-    keys: [
-      { key: "health", label: "Sức khỏe", type: "number" },
-      { key: "look", label: "Ngoại hình", type: "number" },
-      { key: "iq", label: "IQ", type: "number" },
-      { key: "eq", label: "EQ", type: "number" },
-    ]
-  },
-  {
-    title: "2. Bản Sắc",
-    grid: true,
-    keys: [
-      { key: "openness", label: "Cởi mở (Bảo thủ - Sáng tạo)", type: "number" },
-      { key: "dedicate", label: "Tận tâm (Tùy hứng - Kỷ luật)", type: "number" },
-      { key: "tendency", label: "Khuynh hướng (Hướng nội - Sáng tạo)", type: "number" },
-      { key: "sociable", label: "Hòa đồng (Hung ác - Hiền lành)", type: "number" },
-      { key: "stability", label: "Ổn định (Lo âu - Bình thản)", type: "number" },
-    ]
-  },
-  {
-    title: "3. Sinh Lý",
-    grid: true,
-    keys: [
-      { key: "energy", label: "Năng lượng", type: "number" },
-      { key: "nutrient", label: "Dinh dưỡng", type: "number" },
-      { key: "temperature", label: "Thân nhiệt", type: "number" },
-      { key: "comfortable", label: "Sự thoải mái", type: "number" },
-      { key: "stress", label: "Stress", type: "number" },
-      { key: "excitement", label: "Hưng phấn", type: "number" },
-    ]
-  },
-  {
-    title: "4. Tâm Lý",
-    grid: true,
-    keys: [
-      { key: "pleasure", label: "Niềm vui", type: "number" },
-      { key: "arousal", label: "Sự kích thích", type: "number" },
-      { key: "domination", label: "Sự thống trị", type: "number" },
-      { key: "will_power", label: "Ý chí", type: "number" },
-      { key: "faith_index", label: "Độ kiên định (Niềm tin)", type: "number" },
-    ]
-  },
-  {
-    title: "5. Nhận Thức",
-    grid: true,
-    keys: [
-      { key: "logic_emotion", label: "Cán cân Lý trí / Cảm xúc", type: "number" },
-      { key: "focus_spain", label: "Độ tập trung", type: "number" },
-      { key: "bias", label: "Thiên kiến xác nhận", type: "number" },
-      { key: "thinking_type", label: "Xu hướng suy diễn", type: "number" },
-      { key: "awareness_time", label: "Nhạy cảm thời gian", type: "boolean" },
-    ]
-  },
-  {
-    title: "6. Xã Hội",
-    grid: true,
-    keys: [
-      { key: "position_len", label: "Cảm nhận vị thế", type: "number" },
-      { key: "social_bias", label: "Nhu cầu xã hội", type: "number" },
-      { key: "environment_skeptical", label: "Hoài nghi môi trường", type: "number" },
-    ]
-  },
-  {
-    title: "7. Nâng Cao",
-    keys: [
-      { key: "long_term_intention", label: "Ý định dài hạn", type: "string" },
-      { key: "stick_index", label: "Độ duy trì chủ đề", type: "number" },
-      { key: "next_intention", label: "Mục tiêu kế tiếp", type: "string" },
-    ]
-  }
-]
+export default function Sidebar({ gameState, setGameState, sidebarOpen, toggleSidebar, currentWorldId, setCurrentWorldId, onDeleteCharacter }: SidebarProps) {
+  const [modalOpen, setModalOpen] = useState(false);
+  const [initialTab, setInitialTab] = useState<string>('World');
 
-const matrixKeys = [
-  { key: "relationship", label: "Mối quan hệ", type: "string" },
-  { key: "title", label: "Xưng hô", type: "string" },
-  { key: "interaction", label: "Tương tác", type: "number" },
-  { key: "trust", label: "Độ tin tưởng", type: "number" },
-  { key: "affection", label: "Độ thiện cảm", type: "number" },
-  { key: "intimacy", label: "Độ thân mật", type: "number" },
-  { key: "obligation", label: "Ân huệ", type: "number" },
-  { key: "interest", label: "Toan tính", type: "number" },
-]
+  const openModal = (tab: string) => {
+    setInitialTab(tab);
+    setModalOpen(true);
+  };
 
-export default function Sidebar({ gameState, setGameState, sidebarOpen, toggleSidebar, currentWorldId, setCurrentWorldId, worldsList }: SidebarProps) {
-  const [activeTab, setActiveTab] = useState<'A' | 'B' | 'World'>('A')
-  const [isSaving, setIsSaving] = useState(false)
-
-  const handleSaveToCloud = async () => {
-    setIsSaving(true)
-    try {
-      await setDoc(doc(db, 'worlds', currentWorldId), gameState)
-      alert("✓ Đã lưu thay đổi vào thế giới [" + currentWorldId + "] thành công!")
-    } catch (error) {
-      console.error(error)
-      alert("⚠ Lỗi khi lưu, bạn có quyền ghi vào Firebase không?")
-    } finally {
-      setIsSaving(false)
-    }
-  }
-
-  const charA = gameState.characters[0]
-  const charB = gameState.characters[1]
-
-  const handleChange = (characterIndex: number, section: string, field: string, value: string | number | boolean) => {
-    const newState = { ...gameState }
-    const char = newState.characters[characterIndex] as any
-    char[section][field] = value
-    setGameState(newState)
-  }
-
-  const renderField = (index: number, section: string, field: any, char: any) => {
-    const val = char[section][field.key]
+  const handleAddCharacter = () => {
+    const newCharId = `char_${String.fromCharCode(65 + gameState.characters.length)}`; // e.g. char_C
+    const newChar = {
+      id: newCharId,
+      roleplay_prompt: "",
+      stats: {
+        name: `Nhân vật ${gameState.characters.length + 1}`,
+        date_of_birth: "",
+        age: "",
+        gender: "",
+        job: "",
+        position: "",
+        relationship_list: "",
+        fortune: "",
+        health: 100, look: 50, iq: 100, eq: 100,
+        faith: "", passion: "", emotional_pain: "", love_hates: "", pros_cons: "",
+        openness: 50, dedicate: 50, tendency: 50, sociable: 50, stability: 50,
+        energy: 100, nutrient: 100, temperature: 37, comfortable: 100, stress: 0, excitement: 50,
+        pleasure: 50, arousal: 50, domination: 50, will_power: 50, faith_index: 50,
+        logic_emotion: 50, focus_spain: 50, bias: 0, thinking_type: 50, awareness_time: true,
+        position_len: 50, social_bias: 50, environment_skeptical: 50,
+        long_term_intention: "", stick_index: 50, next_intention: "Ngủ"
+      },
+      relationships: {}
+    };
     
-    if (field.type === 'string') {
-      return (
-        <div key={field.key} className={styles.formGroup}>
-          <label className={styles.formLabel}>{field.label}</label>
-          {field.key.includes("intention") || field.key.includes("pain") || field.key.includes("passion") || field.key.includes("list") || field.key.includes("hates") || field.key.includes("pros_cons") ? (
-            <textarea className={styles.formTextarea} value={val || ""} onChange={e => handleChange(index, section, field.key, e.target.value)} />
-          ) : (
-            <input className={styles.formInput} value={val || ""} onChange={e => handleChange(index, section, field.key, e.target.value)} />
-          )}
-        </div>
-      )
-    }
-
-    if (field.type === 'select') {
-      return (
-        <div key={field.key} className={styles.formGroup}>
-          <label className={styles.formLabel}>{field.label}</label>
-          <select 
-             className={styles.formInput} 
-             value={val || ""} 
-             onChange={e => handleChange(index, section, field.key, e.target.value)}
-             style={{ cursor: 'pointer' }}
-          >
-             <option value="" disabled>-- Chọn --</option>
-             {field.options.map((opt: string) => <option key={opt} value={opt}>{opt}</option>)}
-          </select>
-        </div>
-      )
-    }
-
-    if (field.type === 'number') {
-      return (
-        <div key={field.key} className={styles.formGroup}>
-          <label className={styles.formLabel}>{field.label}</label>
-          <div className={styles.sliderContainer}>
-            <input type="range" min="0" max="100" className={styles.slider} value={val || 0} onChange={e => handleChange(index, section, field.key, parseInt(e.target.value))} />
-            <span className={styles.sliderValue}>{val}</span>
-          </div>
-        </div>
-      )
-    }
-
-    if (field.type === 'boolean') {
-      return (
-        <div key={field.key} className={styles.formGroup} style={{flexDirection: 'row', alignItems: 'center', gap: 10}}>
-          <label className={styles.formLabel}>{field.label}</label>
-          <input type="checkbox" checked={val} onChange={e => handleChange(index, section, field.key, e.target.checked)} />
-        </div>
-      )
-    }
-  }
-
-  const renderCharacterForm = (character: Character, index: number) => {
-    return (
-      <div className={styles.formSection}>
-        <hr style={{borderColor: 'var(--color-border)', margin: '10px 0', opacity: 0.5}} />
-        
-        <div className={styles.formGroup}>
-          <label className={styles.formLabel}>Roleplay Prompt (Bí mật)</label>
-          <textarea 
-            className={styles.formTextarea} 
-            value={character.roleplay_prompt}
-            onChange={(e) => {
-               const newState = { ...gameState }
-               newState.characters[index].roleplay_prompt = e.target.value
-               setGameState(newState)
-            }}
-          />
-        </div>
-
-        {getCategories().map((cat, i) => (
-          <div key={i}>
-            <h4 className={styles.title} style={{marginTop: 24, fontSize: 16}}>{cat.title}</h4>
-            <div style={{ display: cat.grid ? 'grid' : 'flex', flexDirection: cat.grid ? 'unset' : 'column', gridTemplateColumns: cat.grid ? 'minmax(0, 1fr)' : 'none', gap: '12px' }}>
-              {cat.keys.map(k => renderField(index, 'stats', k, character))}
-            </div>
-          </div>
-        ))}
-
-        <h4 className={styles.title} style={{marginTop: 30, fontSize: 17, color: 'var(--color-text-accent)'}}>
-          II. Matrix Connection (Với {index === 0 ? charB.stats.name : charA.stats.name})
-        </h4>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          {matrixKeys.map(k => renderField(index, 'matrix_to_other', k, character))}
-        </div>
-
-        <div style={{marginTop: 30, marginBottom: 50}}>
-           <button className={styles.saveButton} onClick={handleSaveToCloud} disabled={isSaving}>
-             <Save size={18} />
-             {isSaving ? "ĐANG LƯU..." : "LƯU TRẠNG THÁI"}
-           </button>
-        </div>
-      </div>
-    )
-  }
+    setGameState({
+      ...gameState,
+      characters: [...gameState.characters, newChar]
+    });
+  };
 
   return (
-    <div className={styles.sidebar}>
-      <div className={styles.header}>
-        <button className={styles.toggleBtn} onClick={toggleSidebar}>
-          <Menu size={24} />
-        </button>
-        {sidebarOpen && (
-          <div className={styles.headerTitles}>
-            <h2 className={styles.title}>Bảng Điều Khiển</h2>
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '4px' }}>
-              <select 
-                className={styles.formInput} 
-                style={{ padding: '6px', fontSize: '12px', width: 'auto', cursor: 'pointer', maxWidth: '150px' }}
-                value={currentWorldId}
-                onChange={(e) => {
-                  if (e.target.value === "CREATE_NEW") {
-                    const newId = `world_${Date.now()}`
-                    setCurrentWorldId(newId)
-                  } else {
-                    setCurrentWorldId(e.target.value)
-                  }
-                }}
-              >
-                {worldsList.map(w => (
-                   <option key={w.id} value={w.id}>{w.name}</option>
-                ))}
-                {!worldsList.find(w => w.id === currentWorldId) && (
-                   <option value={currentWorldId}>Thế giới mới chưa lưu...</option>
-                )}
-                <option value="CREATE_NEW">-- TẠO THẾ GIỚI MỚI --</option>
-              </select>
-            </div>
-          </div>
-        )}
-      </div>
-
-      <div className={`${styles.tabs} ${!sidebarOpen ? styles.tabsVertical : ''}`}>
-        <button className={`${styles.tab} ${activeTab === 'A' ? styles.active : ''}`} onClick={() => { setActiveTab('A'); if(!sidebarOpen) toggleSidebar(); }}>
-          <span className={styles.tabIcon}><User size={18} /></span>
-          {sidebarOpen && <span>{charA.stats.name}</span>}
-        </button>
-        <button className={`${styles.tab} ${activeTab === 'B' ? styles.active : ''}`} onClick={() => { setActiveTab('B'); if(!sidebarOpen) toggleSidebar(); }}>
-          <span className={styles.tabIcon}><User size={18} /></span>
-          {sidebarOpen && <span>{charB.stats.name}</span>}
-        </button>
-        <button className={`${styles.tab} ${activeTab === 'World' ? styles.active : ''}`} onClick={() => { setActiveTab('World'); if(!sidebarOpen) toggleSidebar(); }}>
-          <span className={styles.tabIcon}><Globe size={18} /></span>
-          {sidebarOpen && <span>Quản Trò</span>}
-        </button>
-      </div>
-
-      <div style={{ display: sidebarOpen ? 'flex' : 'none', flexDirection: 'column', flexGrow: 1, overflowY: 'auto' }}>
-        {activeTab === 'A' && renderCharacterForm(charA, 0)}
-        {activeTab === 'B' && renderCharacterForm(charB, 1)}
-        {activeTab === 'World' && (
-        <div className={styles.formSection}>
-          <h4 className={styles.title}>Quản Trò (Game Master)</h4>
-          <div className={styles.formGroup}>
-            <label className={styles.formLabel}>Tên Thế giới (World Name)</label>
-            <input className={styles.formInput} value={gameState.world.name || currentWorldId} onChange={(e) => setGameState({...gameState, world: {...gameState.world, name: e.target.value}})} />
-          </div>
-          <div className={styles.formGroup}>
-            <label className={styles.formLabel}>Thời Gian Thực/Ảo</label>
-            <input className={styles.formInput} value={gameState.world.time} onChange={(e) => setGameState({...gameState, world: {...gameState.world, time: e.target.value}})} />
-          </div>
-          <div className={styles.formGroup}>
-            <label className={styles.formLabel}>Môi Trường Hiện Tại</label>
-            <textarea className={styles.formTextarea} value={gameState.world.environment} onChange={(e) => setGameState({...gameState, world: {...gameState.world, environment: e.target.value}})} />
-          </div>
-          <div className={styles.formGroup}>
-            <label className={styles.formLabel}>Chủ Đề (Topic)</label>
-            <input className={styles.formInput} value={gameState.world.current_topic} onChange={(e) => setGameState({...gameState, world: {...gameState.world, current_topic: e.target.value}})} />
-          </div>
-          <div className={styles.formGroup}>
-            <label className={styles.formLabel}>Lệnh Tới Nhân Vật Tiep Theo: {gameState.world.next_speaker}</label>
-            <input className={styles.formInput} title="Tone" value={gameState.world.next_tone} onChange={(e) => setGameState({...gameState, world: {...gameState.world, next_tone: e.target.value}})} />
-            <br />
-            <input className={styles.formInput} title="Độ dài" value={gameState.world.next_length} onChange={(e) => setGameState({...gameState, world: {...gameState.world, next_length: e.target.value}})} />
-          </div>
-          <div className={styles.formGroup}>
-            <label className={styles.formLabel}>Kịch Bản Tương Lai</label>
-            <textarea className={styles.formTextarea} style={{minHeight: 150}} value={gameState.world.scenario} onChange={(e) => setGameState({...gameState, world: {...gameState.world, scenario: e.target.value}})} />
-          </div>
-          <div className={styles.formGroup}>
-            <label className={styles.formLabel}>Quy luật thế giới</label>
-            <textarea className={styles.formTextarea} value={gameState.world.rules} onChange={(e) => setGameState({...gameState, world: {...gameState.world, rules: e.target.value}})} />
-          </div>
-          <button className={styles.saveButton} onClick={handleSaveToCloud} disabled={isSaving}>
-            <Save size={18} />
-            {isSaving ? "ĐANG LƯU..." : "LƯU THẾ GIỚI (CLOUD)"}
+    <>
+      <div className={`${styles.sidebar} ${!sidebarOpen ? styles.collapsed : ''}`}>
+        <div className={styles.header}>
+          <button className={styles.toggleBtn} onClick={toggleSidebar}>
+            <Menu size={24} />
           </button>
         </div>
-      )}
+
+        <div className={styles.entityList}>
+          {/* Game Master */}
+          <div className={styles.entityCard} onClick={() => openModal('World')}>
+            <div className={styles.avatar}>
+              <Settings size={20} />
+            </div>
+            {sidebarOpen && (
+              <div className={styles.entityInfo}>
+                <span className={styles.entityName}>Game Master</span>
+                <span className={styles.entityRole}>World State</span>
+              </div>
+            )}
+            {sidebarOpen && (
+              <button className={styles.editBtn}>
+                <Edit3 size={16} />
+              </button>
+            )}
+          </div>
+
+          {gameState.characters.map((char, index) => (
+            <div key={char.id} className={styles.entityCard} onClick={() => openModal(char.id)}>
+              <div className={styles.avatar}>
+                <User size={20} />
+              </div>
+              {sidebarOpen && (
+                <div className={styles.entityInfo}>
+                  <span className={styles.entityName}>{char.stats.name}</span>
+                  <span className={styles.entityRole}>Character {String.fromCharCode(65 + index)}</span>
+                </div>
+              )}
+              {sidebarOpen && (
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  <button className={styles.editBtn}>
+                    <Edit3 size={16} />
+                  </button>
+                  <button 
+                    className={styles.deleteBtn} 
+                    onClick={(e) => { e.stopPropagation(); onDeleteCharacter(char.id); }}
+                    title="Xóa nhân vật"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+
+          {sidebarOpen && (
+            <div className={styles.addCharBtn} onClick={handleAddCharacter}>
+              + Thêm nhân vật
+            </div>
+          )}
+        </div>
+
+        <div className={styles.footer}>
+          <button className={styles.backBtn} onClick={() => setCurrentWorldId("")} title="Back to Multiverse">
+            <ArrowLeft size={24} />
+            {sidebarOpen && <span className={styles.backText}>Exit World</span>}
+          </button>
+        </div>
       </div>
-    </div>
+
+      {modalOpen && (
+        <BigEditModal 
+          gameState={gameState}
+          setGameState={setGameState}
+          currentWorldId={currentWorldId}
+          onClose={() => setModalOpen(false)}
+          initialTab={initialTab}
+        />
+      )}
+    </>
   )
 }

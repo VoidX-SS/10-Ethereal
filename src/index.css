@@ -4,22 +4,61 @@
   /* Minimalism 2.0 Palette */
   --color-bg-main: #FAFAFA;
   --color-bg-sidebar: #FFFFFF;
-  
+
   /* Element Colors */
-  --color-text-main: #111111;     /* Stark black */
-  --color-text-muted: #777777;    /* Neutral gray */
-  --color-text-accent: #000000;   /* Pure black accent */
-  
-  --color-border: #CCCCCC;        /* Viền sắc nét, tương phản hơn */
-  
+  --color-text-main: #111111;
+  /* Stark black */
+  --color-text-muted: #777777;
+  /* Neutral gray */
+  --color-text-accent: #1f3376;
+  /* Dark orange accent */
+
+  --color-border: #E0E0E0;
+
   --font-serif: 'Lora', serif;
   --font-sans: 'Inter', sans-serif;
-  
+
   /* Chat bubbles */
   --color-thought-text: #666666;
   --color-thought-border: #BBBBBB;
-  --color-dialogue-bg-left: #F4F4F4; 
+  --color-dialogue-bg-left: #F4F4F4;
   --color-dialogue-bg-right: #FFFFFF;
+
+  --color-brand: #333333;
+  --color-hover: #EEEEEE;
+}
+
+:root.dark,
+:root:not(.light) {
+  @media (prefers-color-scheme: dark) {
+    --color-bg-main: #111111;
+    --color-bg-sidebar: #1A1A1A;
+    --color-text-main: #EFEFEF;
+    --color-text-muted: #888888;
+    --color-text-accent: #ea580c;
+    --color-border: #333333;
+    --color-thought-text: #AAAAAA;
+    --color-thought-border: #444444;
+    --color-dialogue-bg-left: #222222;
+    --color-dialogue-bg-right: #1E1E1E;
+    --color-brand: #CCCCCC;
+    --color-hover: #2A2A2A;
+  }
+}
+
+:root.dark {
+  --color-bg-main: #111111;
+  --color-bg-sidebar: #1A1A1A;
+  --color-text-main: #EFEFEF;
+  --color-text-muted: #888888;
+  --color-text-accent: #ea580c;
+  --color-border: #333333;
+  --color-thought-text: #AAAAAA;
+  --color-thought-border: #444444;
+  --color-dialogue-bg-left: #222222;
+  --color-dialogue-bg-right: #1E1E1E;
+  --color-brand: #CCCCCC;
+  --color-hover: #2A2A2A;
 }
 
 * {
@@ -37,11 +76,23 @@ body {
 }
 
 @keyframes messageFadeIn {
-  from { opacity: 0; transform: translateY(15px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(15px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-h1, h2, h3, h4, h5, h6 {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
   font-family: var(--font-serif);
   font-weight: 500;
   color: var(--color-text-main);
@@ -52,14 +103,17 @@ h1, h2, h3, h4, h5, h6 {
   width: 5px;
   height: 5px;
 }
+
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
 ::-webkit-scrollbar-thumb {
   background: #E0E0E0;
   border-radius: 10px;
   transition: all 0.3s ease;
 }
+
 ::-webkit-scrollbar-thumb:hover {
   background: #C0C0C0;
 }
