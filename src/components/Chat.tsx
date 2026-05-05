@@ -14,6 +14,7 @@ interface ChatProps {
 }
 
 export default function Chat({ history, gameState, currentWorldId }: ChatProps) {
+  const messagesAreaRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const [injectText, setInjectText] = useState('')
   const [lastReadId, setLastReadId] = useState<string | null>(localStorage.getItem(`lastRead_${currentWorldId}`))
@@ -21,9 +22,34 @@ export default function Chat({ history, gameState, currentWorldId }: ChatProps) 
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
   const [editContent, setEditContent] = useState<any>({})
 
+  const [displayLimit, setDisplayLimit] = useState(35)
+  const [isAtBottom, setIsAtBottom] = useState(true)
+
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (isAtBottom) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
   }, [history])
+
+  const handleScroll = () => {
+    if (!messagesAreaRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = messagesAreaRef.current;
+
+    setIsAtBottom(scrollHeight - scrollTop - clientHeight < 100);
+
+    if (scrollTop === 0 && displayLimit < history.length) {
+      const oldScrollHeight = scrollHeight;
+      setDisplayLimit(prev => Math.min(prev + 30, history.length));
+
+      requestAnimationFrame(() => {
+        if (messagesAreaRef.current) {
+          messagesAreaRef.current.scrollTop = messagesAreaRef.current.scrollHeight - oldScrollHeight;
+        }
+      });
+    }
+  }
+
+  const displayedHistory = history.slice(-displayLimit);
 
   const getCharacterName = (id: string) => {
     if (id === 'Narrator') return 'Narrator'
@@ -176,12 +202,12 @@ export default function Chat({ history, gameState, currentWorldId }: ChatProps) 
         </div>
       </div>
 
-      <div className={styles.messagesArea}>
+      <div className={styles.messagesArea} ref={messagesAreaRef} onScroll={handleScroll}>
         <div className={styles.scenarioBanner}>
           {gameState.world.scenario}
         </div>
 
-        {history.map((msg, index) => {
+        {displayedHistory.map((msg, index) => {
           const isLastRead = msg.id === lastReadId;
           const isCatastrophe = msg.thought?.includes("CATASTROPHE") || msg.dialogue?.includes("CATASTROPHE");
           const isRashomon = msg.thought?.includes("RASHOMON") || msg.dialogue?.includes("RASHOMON");

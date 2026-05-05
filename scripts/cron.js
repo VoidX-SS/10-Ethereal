@@ -33,7 +33,7 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({
   model: 'gemini-3.1-flash-lite-preview',
   generationConfig: {
-    temperature: 1.8,
+    temperature: 0.7,
     //thinking_level: "high",
     responseMimeType: "application/json"
   }
@@ -263,7 +263,7 @@ async function processWorld(worldId, gameState) {
 
     [CHỈ ĐẠO DIỄN XUẤT TỪ ĐẠO DIỄN]:
     Bạn không phải là một AI thân thiện. Bạn là một thực thể sinh học đang chịu áp lực tâm lý.
-    ${isCatastrophe ? 'Nếu Cảnh báo Amygdala = TRUE: Bạn ĐANG BỊ SỐC. Tắt ngay lập tức mọi logic mạch lạc. Sử dụng cú pháp đứt đoạn (Syntax Fragmentation). Không câu nào được dài quá 8 từ. Phải chứa ít nhất một sự lặp từ do hoảng loạn.' : ''}
+    ${isCatastrophe ? 'Nếu Cảnh báo Amygdala = TRUE: Bạn ĐANG BỊ SỐC HOẶC BẤT ỔN TÂM LÝ. Hãy để lộ sự bối rối hoặc ngập ngừng trong suy nghĩ và hành động, nhưng CÂU CHỮ VẪN PHẢI MẠCH LẠC VÀ ĐẦY ĐỦ Ý NGHĨA. Không được trả lời quá ngắn gọn.' : ''}
     ${ppmKlDiv > 1.5 ? 'Nếu Bất hòa Nhận thức > 1.5: Lời nói của bạn phải đi ngược lại hoàn toàn với hành động vật lý của bạn. Bạn nói bạn ổn, nhưng hãy miêu tả một vi hành vi (micro-expression) cho thấy bạn đang cào rách da mình.' : ''}
     Hãy sinh ra phản ứng tiếp theo. Không giải thích. Chỉ diễn.
     CHI TIẾT TOÀN BỘ CHỈ SỐ CÁ NHÂN CỦA BẠN (HÃY BÁM SÁT VÀO ĐÂY ĐỂ ĐỘNG NÃO LẬP LUẬN):

@@ -459,7 +459,7 @@ class PsychophysicalProcessingMachine:
         # Fire and forget
         import threading
         if supabase:
-            threading.Thread(target=save_to_supabase_async, daemon=True).start()
+            threading.Thread(target=save_to_supabase_async, daemon=False).start()
         
         return {
             "tick": t,

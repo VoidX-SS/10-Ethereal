@@ -96,12 +96,7 @@ export default function ParticleSphere() {
         ctx.beginPath();
         ctx.arc(p.px, p.py, size, 0, Math.PI * 2);
         ctx.fill();
-
-        // Thêm hiệu ứng phát sáng nhẹ cho mỗi hạt
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = 'rgba(255, 255, 255, 0.8)';
       }
-      ctx.shadowBlur = 0; // Reset shadow cho lượt sau
 
       requestAnimationFrame(render);
     };
